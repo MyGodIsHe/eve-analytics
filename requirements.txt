@@ -3,6 +3,7 @@ flup
 south
 eveapi==1.2.6
 pyzmq
+gevent
 mysql-python
 django-rq
 fabric

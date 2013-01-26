@@ -59,7 +59,7 @@ def processing(market_data):
                     issue_date=issue_date,
                 ).save()
             except IntegrityError as e:
-                if e.args != 1062:
+                if e.args[0] != 1062:
                     raise e
 
             orders.append(row['orderID'])

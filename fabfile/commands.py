@@ -161,7 +161,7 @@ def start_all():
     service_supervisor()
 
 def install_system_tools():
-    sudo('apt-get install gcc make git python-setuptools python-dev libzmq-dev g++')
+    sudo('apt-get install gcc make git python-setuptools python-dev libzmq-dev g++ libevent-dev')
     sudo('easy_install pip')
     sudo('pip install virtualenv')
 
