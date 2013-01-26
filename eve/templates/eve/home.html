@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Home</title>
+    <link href="http://twitter.github.com/bootstrap/assets/css/bootstrap.css" rel="stylesheet">
+    <style>
+        #main-nav {
+            margin-top: 15px;
+            margin-bottom: 0;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Part 1: Wrap all page content here -->
+    <div id="wrap">
+
+        <!-- Begin page content -->
+        <div class="container">
+            <div class="page-header">
+                <div class="row">
+                    <div class="span4">
+                        <h1>Market analyzer</h1>
+                    </div>
+                    <div class="span8">
+                        <ul class="nav nav-pills" id="main-nav">
+                            <li class="active">
+                                <a href="/">Home</a>
+                            </li>
+                            <li><a href="">...</a></li>
+                            <li><a href="#">...</a></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+
+            <table class="table">
+                <tbody>
+                {% for i in page %}
+                    <tr><td><img src="{{ i.image32 }}" class="img-polaroid"/></td><td>{{ i.name }}</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+
+            <div class="pagination">
+                <ul>
+                    {% if page.has_previous %}
+                    <li><a href="{% url null_orders page.previous_page_number %}">Prev</a></li>
+                    {% endif %}
+                    {% for i in page.paginator.page_range %}
+                    <li><a href="{% url null_orders i %}">{{ i }}</a></li>
+                    {% endfor %}
+                    {% if page.has_next %}
+                    <li><a href="{% url null_orders page.next_page_number %}">Next</a></li>
+                    {% endif %}
+                </ul>
+            </div>
+
+        </div>
+
+        <div id="push"></div>
+    </div>
+
+    <div id="footer">
+        <div class="container">
+            <p class="muted credit">Example courtesy <a href="http://martinbean.co.uk">Martin Bean</a> and <a href="http://ryanfait.com/sticky-footer/">Ryan Fait</a>.</p>
+        </div>
+    </div>
+</body>
+</html>

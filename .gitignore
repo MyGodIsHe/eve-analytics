@@ -1,0 +1,6 @@
+*.pyc
+/static/*
+/media/*
+/.idea/
+/settings/local.py
+/venv
