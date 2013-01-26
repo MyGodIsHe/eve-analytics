@@ -1,4 +1,4 @@
-DEBUG = False
+DEBUG = True
 TEMPLATE_DEBUG = DEBUG
 
 DATABASES = {
@@ -12,4 +12,4 @@ DATABASES = {
     }
 }
 
-SENTRY_DSN = 'http://dd44ac0702a24088abaa0d3b65a97f91:3f1411510ab34dfa85dcbb908ea48496@sentry.megail.com/2'
+SENTRY_DSN = 'http://dd44ac0702a24088abaa0d3b65a97f91:3f1411510ab34dfa85dcbb908ea48496@sentry.megail.ru/2'
