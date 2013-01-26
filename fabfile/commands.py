@@ -249,7 +249,7 @@ def configure_supervisor():
     """
     conf_locate = '/etc/supervisor/conf.d/eve.conf'
     sudo_upload_template("%s%s" % (FABFILE_DIR, conf_locate), conf_locate, dict(
-        directory=APP_DIR,
+        app_dir=APP_DIR,
         venv=VENV_DIR,
         user=APP_USER,
         sentry_dir=SENTRY_DIR,
