@@ -11,3 +11,5 @@ DATABASES = {
         'PORT': '',                      # Set to empty string for default. Not used with sqlite3.
     }
 }
+
+SENTRY_DSN = 'http://dd44ac0702a24088abaa0d3b65a97f91:3f1411510ab34dfa85dcbb908ea48496@sentry.megail.com/2'
