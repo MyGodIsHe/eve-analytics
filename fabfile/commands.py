@@ -105,16 +105,17 @@ def update_link(path):
 
 def prod_config(path):
     prod = posixpath.join(path, FABFILE_DIR, 'production_settings.py')
-    orig = posixpath.join(path, 'settings', 'local.py')
+    orig = posixpath.join(path, 'eve', 'settings', 'local.py')
     run('cp -f %s %s' % (prod, orig))
 
 
 def collect_static(path):
+    if not exists(PUBLIC_DIR):
+        run('mkdir %s' % PUBLIC_DIR)
+    run('ln -Tfs %s %s' % (PUBLIC_DIR, posixpath.join(path, 'public')))
+
     with cd(path):
         with prefix(env.activate):
-            if not exists(PUBLIC_DIR):
-                run('mkdir -p', PUBLIC_DIR)
-            run('ln -Tfs %s %s' % ('public', PUBLIC_DIR))
             run('python manage.py collectstatic --noinput')
 
 
@@ -246,18 +247,31 @@ def service_supervisor(action='start'):
     """
     Supervisor step 3
     """
-    sudo('service supervisord %s' % action)
+    sudo('service supervisor %s' % action)
 
 def status_supervisor():
     """
     Supervisor extend
     """
-    sudo('supervisorctl -c /etc/supervisor/supervisord.conf status')
+    sudo('supervisorctl status')
 
 
 def manage_supervisor(program, action):
-    sudo('supervisorctl -c /etc/supervisor/supervisord.conf %s eve:%s' % (action, program))
+    sudo('supervisorctl %s eve:%s' % (action, program))
 
 
 def install_mysql():
+    """
+    Supervisor step 1
+    """
     sudo('apt-get install mysql-server libmysqlclient-dev')
+
+def configure_mysql():
+    """
+    Supervisor step 2
+    """
+    run("mysql -u root -e 'CREATE DATABASE eve CHARACTER SET utf8'")
+
+
+def first_deploy():
+    run('mkdir %s'%  LOG_DIR)
