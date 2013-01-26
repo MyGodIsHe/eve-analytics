@@ -117,10 +117,13 @@ INSTALLED_APPS = (
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'django.contrib.admin',
+    'raven.contrib.django',
     'django_rq',
     'south',
     'eve',
     )
+
+SENTRY_DSN = 'http://3eb2cb144add4a95909df0eef453c7f8:31740dc5d75f4fb99f2d4248c5575ba1@sentry.megail.com/2'
 
 RQ_QUEUES = {
     'default': {

@@ -6,3 +6,5 @@ pyzmq
 mysql-python
 django-rq
 fabric
+sentry==5.2.2
+raven

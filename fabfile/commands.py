@@ -10,7 +10,7 @@ from fabric.utils import fastprint
 from fabric.contrib.files import exists, upload_template
 
 
-DOMAIN = 'eve.megail.ru'
+APP_DOMAIN = 'eve.megail.ru'
 GIT_REPO = 'git@bitbucket.org:ichistyakov/eve-analytics.git'
 APP_NAME = 'www'
 APP_USER = 'eve'
@@ -24,6 +24,9 @@ LOG_DIR  = posixpath.join(ROOT_DIR, 'log')
 FABFILE_DIR = 'fabfile'
 FABFILE_ABS_DIR = posixpath.join(APP_DIR, FABFILE_DIR)
 VENV_DIR  = posixpath.join(ROOT_DIR, 'venv')
+
+SENTRY_DOMAIN = 'sentry.megail.ru'
+SENTRY_PORT = 9000
 
 env.activate = 'source %s' % posixpath.join(VENV_DIR, 'bin/activate')
 sudo_user = env.user
@@ -57,7 +60,6 @@ def deploy(revision, *args):
     default_options = [
         'db',
         'deps',
-        'sentry',
         'all',
         ]
 
@@ -92,9 +94,6 @@ def deploy(revision, *args):
     manage_supervisor('django', 'stop')
     # What is better, migrate DB before or after dir change?
     update_link(abs_path)
-
-    if 'sentry' in options:
-        configure_sentry()
 
     manage_supervisor('django', 'start')
 
@@ -179,9 +178,16 @@ def configure_nginx():
     """
     conf_locate = '/etc/nginx/conf.d/eve.conf'
     sudo_upload_template("%s%s" % (FABFILE_DIR, conf_locate), conf_locate, dict(
-        server_name=DOMAIN,
+        server_name=APP_DOMAIN,
         public_dir=PUBLIC_DIR,
         port=APP_PORT,
+    ))
+
+    conf_locate = '/etc/nginx/conf.d/sentry.conf'
+    sudo_upload_template("%s%s" % (FABFILE_DIR, conf_locate), conf_locate, dict(
+        server_name=SENTRY_DOMAIN,
+        port=SENTRY_PORT,
+        sentry_path='/home/eve/venv/local/lib/python2.7/site-packages/sentry',
     ))
 
 def service_nginx(action='start'):
@@ -204,13 +210,21 @@ def service_redis(action='start'):
     sudo('service redis-server %s' % action)
 
 
-def configure_sentry(dir='.sentry'):
+def configure_sentry(email_user, email_password):
     """
     Sentry run after django
     """
-    if not exists(dir):
-        run('mkdir %s' % dir)
-    run('cp %s/sentry.conf.py ~/%s/sentry.conf.py' % (FABFILE_ABS_DIR, dir))
+    if not exists(SENTRY_DIR):
+        run('mkdir %s' % SENTRY_DIR)
+    conf_name = 'sentry.conf.py'
+    upload_template(
+        "%s/%s.tpl" % (FABFILE_DIR, conf_name),
+        posixpath.join(SENTRY_DIR, conf_name), dict(
+            email_user=email_user,
+            email_password=email_password,
+            domain=SENTRY_DOMAIN,
+            port=SENTRY_PORT,
+        ))
     with prefix(env.activate):
         run('sentry upgrade')
 
@@ -271,6 +285,7 @@ def configure_mysql():
     Supervisor step 2
     """
     run("mysql -u root -e 'CREATE DATABASE eve CHARACTER SET utf8'")
+    run("mysql -u root -e 'CREATE DATABASE sentry CHARACTER SET utf8'")
 
 
 def first_deploy():
