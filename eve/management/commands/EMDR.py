@@ -10,7 +10,7 @@ import zlib
 from django.db import transaction
 from django.db.utils import IntegrityError
 from django.utils.dateparse import parse_datetime
-from eve.models import Order, OrderChange, ItemType, Region, Station, SolarSystem, Stat
+from eve.models import Order, OrderChange, ItemType, Region, Station, SolarSystem, State
 
 import zmq.green as zmq
 from django.utils import simplejson
@@ -35,7 +35,7 @@ class Worker(object):
         current_time = datetime.now()
         if current_time - self.last_time > timedelta(seconds=1):
             self.last_time = current_time
-            Stat.set_value('emdr-queue-size', self.queue.qsize())
+            State.set_value('emdr-queue-size', self.queue.qsize())
 
     @staticmethod
     @transaction.commit_manually
@@ -49,7 +49,7 @@ class Worker(object):
             current_time = datetime.now()
             if current_time - last_time > timedelta(seconds=settings.EMDR_TRANSACTION_INTERVAL):
                 last_time = current_time
-                Stat.set_value('emdr-last-transaction', last_time)
+                State.set_value('emdr-last-transaction', last_time)
                 transaction.commit()
 
     @staticmethod

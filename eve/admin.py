@@ -1,5 +1,5 @@
 from django.contrib import admin
-from eve.models import ItemType, Station, SolarSystem, Region, Order, OrderChange, Stat
+from eve.models import ItemType, Station, SolarSystem, Region, Order, OrderChange, State
 
 
 class ItemTypeAdmin(admin.ModelAdmin):
@@ -32,9 +32,9 @@ class OrderChangeAdmin(admin.ModelAdmin):
 
 admin.site.register(OrderChange, OrderChangeAdmin)
 
-class StatAdmin(admin.ModelAdmin):
+class StateAdmin(admin.ModelAdmin):
     list_display = ('name', 'value')
     fields = ('name', 'value')
     readonly_fields = ('name', 'value')
 
-admin.site.register(Stat, StatAdmin)
+admin.site.register(State, StateAdmin)

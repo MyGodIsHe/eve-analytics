@@ -8,18 +8,18 @@ from django.db import models
 class Migration(SchemaMigration):
 
     def forwards(self, orm):
-        # Adding model 'Stat'
-        db.create_table('eve_stat', (
+        # Adding model 'State'
+        db.create_table('eve_state', (
             ('id', self.gf('django.db.models.fields.AutoField')(primary_key=True)),
-            ('name', self.gf('django.db.models.fields.CharField')(max_length=255, db_index=True)),
+            ('name', self.gf('django.db.models.fields.CharField')(unique=True, max_length=255, db_index=True)),
             ('value', self.gf('django.db.models.fields.CharField')(max_length=255)),
         ))
-        db.send_create_signal('eve', ['Stat'])
+        db.send_create_signal('eve', ['State'])
 
 
     def backwards(self, orm):
-        # Deleting model 'Stat'
-        db.delete_table('eve_stat')
+        # Deleting model 'State'
+        db.delete_table('eve_state')
 
 
     models = {
@@ -68,10 +68,10 @@ class Migration(SchemaMigration):
             'name': ('django.db.models.fields.CharField', [], {'max_length': '255', 'null': 'True'}),
             'region': ('django.db.models.fields.related.ForeignKey', [], {'to': "orm['eve.Region']"})
         },
-        'eve.stat': {
-            'Meta': {'object_name': 'Stat'},
+        'eve.state': {
+            'Meta': {'object_name': 'State'},
             'id': ('django.db.models.fields.AutoField', [], {'primary_key': 'True'}),
-            'name': ('django.db.models.fields.CharField', [], {'max_length': '255', 'db_index': 'True'}),
+            'name': ('django.db.models.fields.CharField', [], {'unique': 'True', 'max_length': '255', 'db_index': 'True'}),
             'value': ('django.db.models.fields.CharField', [], {'max_length': '255'})
         },
         'eve.station': {
