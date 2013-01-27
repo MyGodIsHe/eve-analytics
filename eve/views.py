@@ -5,7 +5,6 @@ from eve.models import ItemType, Order
 
 
 def home(request):
-    1/0
     return null_orders(request)
 
 

@@ -1,9 +1,5 @@
-<html>
-<head>
-    <title>Internal Server Error</title>
-</head>
-<body>
-<h1>Internal Server Error</h1>
+{% extends 'error.html' %}
 
-</body>
-</html>
+{% block title %}500 Internal Server Error{% endblock %}
+{% block code %}500{% endblock %}
+{% block text %}500 Internal Server Error{% endblock %}

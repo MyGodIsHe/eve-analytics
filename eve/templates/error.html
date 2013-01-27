@@ -1,0 +1,47 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <meta http-equiv="Content-type" content="text/html; charset=utf-8">
+    <title>{% block title %}{% endblock %} &middot; EVE Analytics</title>
+    <style type="text/css" media="screen">
+        body {
+            background: #f1f1f1;
+            font-family: "HelveticaNeue", Helvetica, Arial, sans-serif;
+            text-rendering: optimizeLegibility;
+            margin: 0; }
+
+        .container { margin: 50px auto 40px auto; width: 600px; text-align: center; }
+
+        a { color: #4183c4; text-decoration: none; }
+        a:visited { color: #4183c4 }
+        a:hover { text-decoration: none; }
+
+        h1 { width: 800px; position:relative; left: -100px; letter-spacing: -1px; line-height: 60px; font-size: 60px; font-weight: 100; margin: 0px 0 50px 0; text-shadow: 0 1px 0 #fff; }
+        p { color: rgba(0, 0, 0, 0.5); margin: 20px 0 40px; }
+
+        ul { list-style: none; margin: 25px 0; padding: 0; }
+        li { display: table-cell; font-weight: bold; width: 1%; }
+        .divider { border-top: 1px solid #d5d5d5; border-bottom: 1px solid #fafafa;}
+
+
+    </style>
+</head>
+<body>
+
+<div class="container">
+
+    <h1>{% block code %}{% endblock %}</h1>
+    <p><strong>{% block text %}{% endblock %}</strong></p>
+
+
+    <div class="divider"></div>
+    <ul id="error-suggestions">
+        <li><a href="#">Contact Support</a></li>
+        <li><a href="/">Home Page</a></li>
+        <li><a href="#">@EVE Analytics</a></li>
+    </ul>
+    <p><img width="133" height="48" title="eve" alt="eve" src="data:image/png;base64,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" /></p>
+</div>
+</body>
+</html>
