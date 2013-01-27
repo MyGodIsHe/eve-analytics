@@ -48,6 +48,16 @@ CREATE INDEX `eve_orderchange_8337030b` ON `eve_orderchange` (`order_id`);
 COMMIT;
         ''')
 
+        db.execute('''
+ALTER TABLE eve_orderchange ENGINE=MyISAM;
+ALTER TABLE eve_order ENGINE=MyISAM;
+ALTER TABLE eve_station ENGINE=MyISAM;
+ALTER TABLE eve_solarsystem ENGINE=MyISAM;
+ALTER TABLE eve_region ENGINE=MyISAM;
+ALTER TABLE eve_itemtype ENGINE=MyISAM;
+ALTER TABLE eve_corporation ENGINE=MyISAM;
+        ''');
+
 
     def backwards(self, orm):
         # Removing unique constraint on 'OrderChange', fields ['order', 'price', 'vol_remaining', 'issue_date']

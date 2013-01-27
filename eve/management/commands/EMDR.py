@@ -26,7 +26,7 @@ def processing(market_data):
     if not region_id:
         return
 
-    region = Region.objects.get_or_create(id=region_id)[0]
+    #region = Region.objects.get_or_create(id=region_id)[0]
 
     for rowset in market_data['rowsets']:
         orders = []
@@ -36,40 +36,41 @@ def processing(market_data):
 
             issue_date = parse_datetime(row['issueDate'])
 
-            if not Order.objects.filter(id=row['orderID']).count():
-                order = Order(
-                    id=row['orderID'],
-                    bid=row['bid'],
-                    range=row['range'],
-                    duration=row['duration'],
-                    vol_entered=row['volEntered'],
-                    min_volume=row['minVolume'],
-                    region=region,
-                )
-                order.item_type = ItemType.objects.get_or_create(id=rowset['typeID'])[0]
-                order.station = Station.objects.get_or_create(id=row['stationID'])[0]
-                if row['solarSystemID']:
-                    order.solar_system = SolarSystem.objects.get_or_create(
-                        id=row['solarSystemID'], defaults={'region_id':region_id})[0]
-                order.save()
 
-            try:
-                OrderChange(
-                    order_id=row['orderID'],
-                    price=row['price'],
-                    vol_remaining=row['volRemaining'],
-                    issue_date=issue_date,
-                ).save()
-            except IntegrityError as e:
-                if e.args[0] != 1062:
-                    raise e
+#            if not Order.objects.filter(id=row['orderID']).count():
+#                order = Order(
+#                    id=row['orderID'],
+#                    bid=row['bid'],
+#                    range=row['range'],
+#                    duration=row['duration'],
+#                    vol_entered=row['volEntered'],
+#                    min_volume=row['minVolume'],
+#                    region=region,
+#                )
+#                order.item_type = ItemType.objects.get_or_create(id=rowset['typeID'])[0]
+#                order.station = Station.objects.get_or_create(id=row['stationID'])[0]
+#                if row['solarSystemID']:
+#                    order.solar_system = SolarSystem.objects.get_or_create(
+#                        id=row['solarSystemID'], defaults={'region_id':region_id})[0]
+#                order.save()
+#
+#            try:
+#                OrderChange(
+#                    order_id=row['orderID'],
+#                    price=row['price'],
+#                    vol_remaining=row['volRemaining'],
+#                    issue_date=issue_date,
+#                ).save()
+#            except IntegrityError as e:
+#                if e.args[0] != 1062:
+#                    raise e
+#
+#            orders.append(row['orderID'])
 
-            orders.append(row['orderID'])
-
-        Order.objects.\
-            filter(closed_at__isnull=True).\
-            exclude(id__in=orders).\
-            update(closed_at=parse_datetime(rowset['generatedAt']))
+#        Order.objects.\
+#            filter(closed_at__isnull=True).\
+#            exclude(id__in=orders).\
+#            update(closed_at=parse_datetime(rowset['generatedAt']))
 
 
 class Command(BaseCommand):
