@@ -5,7 +5,7 @@ from django.views.decorators.cache import never_cache
 from django.contrib.auth import REDIRECT_FIELD_NAME
 from django.utils.translation import ugettext as _
 
-from eve.models import ItemType, Order, State
+from eve.models import ItemType, Order, State, OrderChange
 from eve.forms import EveAuthenticationForm
 
 

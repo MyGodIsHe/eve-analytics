@@ -85,10 +85,15 @@ class Worker(object):
                 region_id=region_id,
                 item_type_id=rowset['typeID'],
                 station_id=row['stationID'],
+                closed_at=,
             )
             if row['solarSystemID']:
                 order.solar_system_id = row['solarSystemID']
+            if row['volRemaining'] == 0:
+                order.closed_at = issue_date
             self.try_save(order)
+        elif row['volRemaining'] == 0:
+            Order.objects.filter(id=row['orderID']).update(closed_at=issue_date)
 
         try:
             OrderChange(
@@ -116,17 +121,9 @@ class Worker(object):
             else:
                 self.last_update[update_key] = tz_now()
 
-            orders = []
-
             for row in rowset['rows']:
                 row = dict(zip(market_data['columns'], row))
                 self.processing_row(rowset, row, region_id)
-                orders.append(row['orderID'])
-
-            Order.objects.\
-            filter(closed_at__isnull=True).\
-            exclude(id__in=orders).\
-            update(closed_at=parse_datetime(rowset['generatedAt']))
 
 
     @staticmethod
