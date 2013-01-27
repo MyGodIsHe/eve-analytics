@@ -43,8 +43,8 @@ def home(request):
         return sign_in(request)
 
     active_orders = Order.objects.filter(closed_at__isnull=True)
-    State.set_value('order-sell-count', active_orders.filter(bid=True).count())
-    State.set_value('order-buy-count', active_orders.filter(bid=False).count())
+    State.set_value('order-buy-count', active_orders.filter(bid=True).count())
+    State.set_value('order-sell-count', active_orders.filter(bid=False).count())
     State.set_value('order-closed-count', Order.objects.filter(closed_at__isnull=False).count())
     return render(request, 'eve/home.html', {
         'state_list': State.objects.order_by('name'),
