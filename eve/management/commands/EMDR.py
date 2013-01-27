@@ -113,6 +113,8 @@ class Worker(object):
                 self.last_update[update_key] = tz_now()
             elif tz_now() - self.last_update[update_key] < Worker.TD_LAST_UPDATE:
                 continue
+            else:
+                self.last_update[update_key] = tz_now()
 
             orders = []
 
