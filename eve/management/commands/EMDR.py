@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 import zlib
+from django.db import transaction
 from django.db.utils import IntegrityError
 from django.utils.dateparse import parse_datetime
 from eve.models import Order, OrderChange, ItemType, Region, Station, SolarSystem, Stat
@@ -13,66 +14,128 @@ from eve.models import Order, OrderChange, ItemType, Region, Station, SolarSyste
 import zmq.green as zmq
 from django.utils import simplejson
 from multiprocessing import Process, Queue
+import re
 
 
-def worker(queue):
-    while True:
-        processing(queue.get())
+class Worker(object):
+    BULK_COUNT = 100
 
-def processing(market_data):
-    region_id = None
-    for rowset in market_data['rowsets']:
-        if rowset['regionID']:
-            region_id = rowset['regionID']
-            break
-    if not region_id:
-        return
+    def __init__(self):
+        self.queue = Queue()
+        self.process = Process(target=Worker.target, args=(self.queue,))
+        self.process.start()
 
-    region = Region.objects.get_or_create(id=region_id)[0]
+        self.order_list = []
+        self.order_change_list = []
 
-    for rowset in market_data['rowsets']:
-        orders = []
+        self.last_time = datetime.now()
 
-        for row in rowset['rows']:
-            row = dict(zip(market_data['columns'], row))
+    def update_stats(self):
+        current_time = datetime.now()
+        if current_time - self.last_time > timedelta(seconds=1):
+            self.last_time = current_time
+            Stat.set_value('emdr-queue-size', self.queue.qsize())
 
-            issue_date = parse_datetime(row['issueDate'])
+    @staticmethod
+    def target(queue):
+        """
+        Run in subprocess
+        """
+        while True:
+            Worker.processing(queue.get())
 
-
-            if not Order.objects.filter(id=row['orderID']).count():
-                order = Order(
-                    id=row['orderID'],
-                    bid=row['bid'],
-                    range=row['range'],
-                    duration=row['duration'],
-                    vol_entered=row['volEntered'],
-                    min_volume=row['minVolume'],
-                    region=region,
-                )
-                order.item_type = ItemType.objects.get_or_create(id=rowset['typeID'])[0]
-                order.station = Station.objects.get_or_create(id=row['stationID'])[0]
-                if row['solarSystemID']:
-                    order.solar_system = SolarSystem.objects.get_or_create(
-                        id=row['solarSystemID'], defaults={'region_id':region_id})[0]
-                order.save()
-
+    @staticmethod
+    def try_save(order):
+        counter = 0
+        while counter < 10:
             try:
-                OrderChange(
-                    order_id=row['orderID'],
-                    price=row['price'],
-                    vol_remaining=row['volRemaining'],
-                    issue_date=issue_date,
-                ).save()
+                order.save()
+                return
             except IntegrityError as e:
-                if e.args[0] != 1062:
+                if e.args[0] != 1452:
                     raise e
+                result = re.search(r'FOREIGN KEY \(`(\w+)`\)', e.args[1])
+                if not result:
+                    raise e
+                result = result.group(1)
+                if result == 'item_type_id':
+                    ItemType(id=order.item_type_id).save()
+                elif result == 'station_id':
+                    Station(id=order.station_id).save()
+                elif result == 'region_id':
+                    Region(id=order.region_id).save()
+                elif result == 'solar_system_id':
+                    SolarSystem(id=order.solar_system_id, region_id=order.region_id).save()
+                else:
+                    raise e
+            counter += 1
+        raise e
 
-            orders.append(row['orderID'])
+    @staticmethod
+    def get_region(market_data):
+        region_id = None
+        for rowset in market_data['rowsets']:
+            if rowset['regionID']:
+                region_id = rowset['regionID']
+                break
+        if not region_id:
+            return
 
-        Order.objects.\
-            filter(closed_at__isnull=True).\
-            exclude(id__in=orders).\
-            update(closed_at=parse_datetime(rowset['generatedAt']))
+        return region_id
+
+    @staticmethod
+    def processing_row(rowset, row, region_id):
+        issue_date = parse_datetime(row['issueDate'])
+
+
+        if not Order.objects.filter(id=row['orderID']).count():
+            order = Order(
+                id=row['orderID'],
+                bid=row['bid'],
+                range=row['range'],
+                duration=row['duration'],
+                vol_entered=row['volEntered'],
+                min_volume=row['minVolume'],
+                region_id=region_id,
+                item_type_id=rowset['typeID'],
+                station_id=row['stationID'],
+            )
+            if row['solarSystemID']:
+                order.solar_system_id = row['solarSystemID']
+            Worker.try_save(order)
+
+        try:
+            OrderChange(
+                order_id=row['orderID'],
+                price=row['price'],
+                vol_remaining=row['volRemaining'],
+                issue_date=issue_date,
+            ).save()
+        except IntegrityError as e:
+            if e.args[0] != 1062:
+                raise e
+
+    @staticmethod
+    def processing(market_data):
+        """
+        Run in subprocess
+        """
+        region_id = Worker.get_region(market_data)
+        if not region_id:
+            return
+
+        for rowset in market_data['rowsets']:
+            orders = []
+
+            for row in rowset['rows']:
+                row = dict(zip(market_data['columns'], row))
+                Worker.processing_row(rowset, row, region_id)
+                orders.append(row['orderID'])
+
+            Order.objects.\
+                filter(closed_at__isnull=True).\
+                exclude(id__in=orders).\
+                update(closed_at=parse_datetime(rowset['generatedAt']))
 
 
 class Command(BaseCommand):
@@ -80,10 +143,7 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         print "Start EMDR"
 
-        # worker
-        queue = Queue()
-        process = Process(target=worker, args=(queue,))
-        process.start()
+        worker = Worker()
 
         # subscribe
         context = zmq.Context()
@@ -91,16 +151,16 @@ class Command(BaseCommand):
         subscriber.connect(settings.EMDR_URL)
         subscriber.setsockopt(zmq.SUBSCRIBE, "")
 
-        last_time = datetime.now()
+        try:
+            while True:
+                job_json = subscriber.recv()
+                market_json = zlib.decompress(job_json)
+                market_data = simplejson.loads(market_json)
 
-        while True:
-            job_json = subscriber.recv()
-            market_json = zlib.decompress(job_json)
-            market_data = simplejson.loads(market_json)
-
-            if market_data['resultType'] == 'orders':
-                queue.put(market_data)
-                current_time = datetime.now()
-                if current_time - last_time > timedelta(seconds=1):
-                    last_time = current_time
-                    Stat.set_value('emdr-queue-size', queue.qsize())
+                if market_data['resultType'] == 'orders':
+                    worker.queue.put(market_data)
+                    worker.update_stats()
+        except KeyboardInterrupt:
+            print "Caught KeyboardInterrupt, terminating workers"
+            worker.queue.close()
+            worker.process.terminate()

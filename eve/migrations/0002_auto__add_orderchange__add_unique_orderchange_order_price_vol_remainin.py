@@ -47,15 +47,16 @@ CREATE INDEX `eve_order_ed89f5d1` ON `eve_order` (`solar_system_id`);
 CREATE INDEX `eve_orderchange_8337030b` ON `eve_orderchange` (`order_id`);
 COMMIT;
         ''')
-
+        #MyISAM
+        return
         db.execute('''
-ALTER TABLE eve_orderchange ENGINE=MyISAM;
-ALTER TABLE eve_order ENGINE=MyISAM;
-ALTER TABLE eve_station ENGINE=MyISAM;
-ALTER TABLE eve_solarsystem ENGINE=MyISAM;
-ALTER TABLE eve_region ENGINE=MyISAM;
-ALTER TABLE eve_itemtype ENGINE=MyISAM;
-ALTER TABLE eve_corporation ENGINE=MyISAM;
+ALTER TABLE eve_orderchange ENGINE=InnoDB;
+ALTER TABLE eve_order ENGINE=InnoDB;
+ALTER TABLE eve_station ENGINE=InnoDB;
+ALTER TABLE eve_solarsystem ENGINE=InnoDB;
+ALTER TABLE eve_region ENGINE=InnoDB;
+ALTER TABLE eve_itemtype ENGINE=InnoDB;
+ALTER TABLE eve_corporation ENGINE=InnoDB;
         ''');
 
 

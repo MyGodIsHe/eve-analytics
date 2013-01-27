@@ -121,6 +121,8 @@ class Stat(models.Model):
     name = models.CharField(unique=True, db_index=True, max_length=255)
     value = models.CharField(max_length=255)
 
+
+
     @staticmethod
     def get_value(name, default=''):
         return Stat.objects.get_or_create(name=name,
