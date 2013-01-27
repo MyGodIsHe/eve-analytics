@@ -2,21 +2,23 @@
 API: https://eve-market-data-relay.readthedocs.org/en/latest/
 Data Format: http://dev.eve-central.com/unifieduploader/start
 """
+from datetime import datetime, timedelta
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 import zlib
-from django.db import transaction
 from django.db.utils import IntegrityError
 from django.utils.dateparse import parse_datetime
-from eve.models import Order, OrderChange, ItemType, Region, Station, SolarSystem
+from eve.models import Order, OrderChange, ItemType, Region, Station, SolarSystem, Stat
 
 import zmq.green as zmq
 from django.utils import simplejson
-from django_rq import job
+from multiprocessing import Process, Queue
 
 
-@job
-@transaction.commit_on_success
+def worker(queue):
+    while True:
+        processing(queue.get())
+
 def processing(market_data):
     region_id = None
     for rowset in market_data['rowsets']:
@@ -77,13 +79,19 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         print "Start EMDR"
+
+        # worker
+        queue = Queue()
+        process = Process(target=worker, args=(queue,))
+        process.start()
+
+        # subscribe
         context = zmq.Context()
         subscriber = context.socket(zmq.SUB)
-
-        # Connect to the first publicly available relay.
         subscriber.connect(settings.EMDR_URL)
-        # Disable filtering.
         subscriber.setsockopt(zmq.SUBSCRIBE, "")
+
+        last_time = datetime.now()
 
         while True:
             job_json = subscriber.recv()
@@ -91,4 +99,8 @@ class Command(BaseCommand):
             market_data = simplejson.loads(market_json)
 
             if market_data['resultType'] == 'orders':
-                processing.delay(market_data)
+                queue.put(market_data)
+                current_time = datetime.now()
+                if current_time - last_time > timedelta(seconds=1):
+                    last_time = current_time
+                    Stat.set_value('emdr-queue-size', queue.qsize())

@@ -115,3 +115,23 @@ class OrderChange(models.Model):
 
     def __unicode__(self):
         return unicode(self.id)
+
+
+class Stat(models.Model):
+    name = models.CharField(unique=True, db_index=True, max_length=255)
+    value = models.CharField(max_length=255)
+
+    @staticmethod
+    def get_value(name, default=''):
+        return Stat.objects.get_or_create(name=name,
+            defaults={'name': name, 'value': default}
+        )[0].value
+
+    @staticmethod
+    def get_int(name, default=0):
+        return int(Stat.get_value(name, default))
+
+    @staticmethod
+    def set_value(name, value):
+        if not Stat.objects.filter(name=name).update(value=str(value)):
+            Stat(name=name, value=value).save()
