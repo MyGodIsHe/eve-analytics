@@ -25,17 +25,34 @@ class Worker(object):
         self.process = Process(target=Worker.target, args=(self.queue,))
         self.process.start()
 
+        self.skip_percent_list = []
         self.packages = 0
         self.skip_packages = 0
+        self.last_time_null = datetime.now()
 
         self.last_time = datetime.now()
+
+    def need_skip(self):
+        self.packages += 1
+        if random.randint(0, self.queue.qsize() / 100) != 0:
+            self.skip_packages += 1
+            return True
+        return False
 
     def update_stats(self):
         current_time = datetime.now()
         if current_time - self.last_time > timedelta(seconds=1):
             self.last_time = current_time
             State.set_value('emdr-queue-size', self.queue.qsize())
-            State.set_value('emdr-skip-percent', "%.2f%%" % (100.0 * self.skip_packages / self.packages))
+
+            if current_time - self.last_time_null > timedelta(minutes=1):
+                self.last_time_null = current_time
+                self.skip_percent_list.append(100.0 * self.skip_packages / self.packages)
+                self.skip_percent_list = self.skip_percent_list[-60:]
+                percent = sum(self.skip_percent_list) / len(self.skip_percent_list)
+                self.packages = 0
+                self.skip_packages = 0
+                State.set_value('emdr-skip-percent', "%.2f%%" % percent)
 
     @staticmethod
     @transaction.commit_manually
@@ -162,9 +179,7 @@ class Command(BaseCommand):
                 market_data = simplejson.loads(market_json)
 
                 if market_data['resultType'] == 'orders':
-                    worker.packages += 1
-                    if random.randint(0, worker.queue.qsize() / 100) != 0:
-                        worker.skip_packages += 1
+                    if worker.need_skip():
                         continue
                     worker.queue.put(market_data)
                     worker.update_stats()
