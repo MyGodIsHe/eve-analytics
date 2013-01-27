@@ -19,58 +19,16 @@ import re
 
 
 class Worker(object):
+    """
+    Run in subprocess
+    """
+    TD_LAST_UPDATE = timedelta(minutes=1)
 
     def __init__(self):
-        self.queue = Queue()
-        self.process = Process(target=Worker.target, args=(self.queue,))
-        self.process.start()
+        self.last_update = {}
 
-        self.skip_percent_list = []
-        self.packages = 0
-        self.skip_packages = 0
-        self.last_time_null = datetime.now()
 
-        self.last_time = datetime.now()
-
-    def need_skip(self):
-        self.packages += 1
-        if random.randint(0, self.queue.qsize() / 100) != 0:
-            self.skip_packages += 1
-            return True
-        return False
-
-    def update_stats(self):
-        current_time = datetime.now()
-        if current_time - self.last_time > timedelta(seconds=1):
-            self.last_time = current_time
-            State.set_value('emdr-queue-size', self.queue.qsize())
-
-            if current_time - self.last_time_null > timedelta(minutes=1):
-                self.last_time_null = current_time
-                self.skip_percent_list.append(100.0 * self.skip_packages / self.packages)
-                self.skip_percent_list = self.skip_percent_list[-60:]
-                percent = sum(self.skip_percent_list) / len(self.skip_percent_list)
-                self.packages = 0
-                self.skip_packages = 0
-                State.set_value('emdr-skip-percent', "%.2f%%" % percent)
-
-    @staticmethod
-    @transaction.commit_manually
-    def target(queue):
-        """
-        Run in subprocess
-        """
-        last_time = datetime.now()
-        while True:
-            Worker.processing(queue.get())
-            current_time = datetime.now()
-            if current_time - last_time > timedelta(seconds=settings.EMDR_TRANSACTION_INTERVAL):
-                last_time = current_time
-                State.set_value('emdr-last-transaction', last_time)
-                transaction.commit()
-
-    @staticmethod
-    def try_save(order):
+    def try_save(self, order):
         counter = 0
         while counter < 10:
             try:
@@ -95,8 +53,8 @@ class Worker(object):
                     raise e
             counter += 1
 
-    @staticmethod
-    def get_region(market_data):
+
+    def get_region_id(self, market_data):
         region_id = None
         for rowset in market_data['rowsets']:
             if rowset['regionID']:
@@ -107,8 +65,8 @@ class Worker(object):
 
         return region_id
 
-    @staticmethod
-    def processing_row(rowset, row, region_id):
+
+    def processing_row(self, rowset, row, region_id):
         issue_date = parse_datetime(row['issueDate'])
 
         if not Order.objects.filter(id=row['orderID']).count():
@@ -125,7 +83,7 @@ class Worker(object):
             )
             if row['solarSystemID']:
                 order.solar_system_id = row['solarSystemID']
-            Worker.try_save(order)
+            self.try_save(order)
 
         try:
             OrderChange(
@@ -138,33 +96,91 @@ class Worker(object):
             if e.args[0] != 1062:
                 raise e
 
-    @staticmethod
-    def processing(market_data):
-        """
-        Run in subprocess
-        """
-        region_id = Worker.get_region(market_data)
+
+    def processing(self, market_data):
+        region_id = self.get_region_id(market_data)
         if not region_id:
             return
 
         for rowset in market_data['rowsets']:
+            update_key = (region_id, rowset['typeID'])
+            if update_key not in self.last_update:
+                self.last_update[update_key] = datetime.now()
+            elif datetime.now() - self.last_update[update_key] < Worker.TD_LAST_UPDATE:
+                continue
+
             orders = []
 
             for row in rowset['rows']:
                 row = dict(zip(market_data['columns'], row))
-                Worker.processing_row(rowset, row, region_id)
+                self.processing_row(rowset, row, region_id)
                 orders.append(row['orderID'])
 
             Order.objects.\
-                filter(closed_at__isnull=True).\
-                exclude(id__in=orders).\
-                update(closed_at=parse_datetime(rowset['generatedAt']))
+            filter(closed_at__isnull=True).\
+            exclude(id__in=orders).\
+            update(closed_at=parse_datetime(rowset['generatedAt']))
+
+
+    @staticmethod
+    @transaction.commit_manually
+    def entry_point(queue):
+        td_interval = timedelta(seconds=settings.EMDR_TRANSACTION_INTERVAL)
+        worker = Worker()
+        last_time = datetime.now()
+        while True:
+            worker.processing(queue.get())
+            current_time = datetime.now()
+            if current_time - last_time > td_interval:
+                last_time = current_time
+                State.set_value('emdr-last-transaction', last_time)
+                transaction.commit()
+
+
+class WorkManager(object):
+    TD_QUEUE_SIZE = timedelta(seconds=1)
+    TD_SKIP_PERCENT = timedelta(minutes=1)
+
+    def __init__(self):
+        self.queue = Queue()
+        self.process = Process(target=Worker.entry_point, args=(self.queue,))
+        self.process.start()
+
+        self.skip_percent_list = []
+        self.packages = 0
+        self.skip_packages = 0
+        self.last_time_null = datetime.now()
+
+        self.last_time = datetime.now()
+
+    def need_skip(self):
+        self.packages += 1
+        if random.randint(0, self.queue.qsize() / 100) != 0:
+            self.skip_packages += 1
+            return True
+        return False
+
+    def update_stats(self):
+        current_time = datetime.now()
+        if current_time - self.last_time > WorkManager.TD_QUEUE_SIZE:
+            self.last_time = current_time
+            State.set_value('emdr-queue-size', self.queue.qsize())
+
+            if current_time - self.last_time_null > WorkManager.TD_SKIP_PERCENT:
+                self.last_time_null = current_time
+                self.skip_percent_list.append(100.0 * self.skip_packages / self.packages)
+                self.skip_percent_list = self.skip_percent_list[-60:]
+                self.packages = 0
+                self.skip_packages = 0
+                percent = sum(self.skip_percent_list) / len(self.skip_percent_list)
+                State.set_value('emdr-skip-percent', "%.2f%%" % percent)
+
 
 
 class Command(BaseCommand):
 
     def start_worker(self):
-        worker = Worker()
+        work_manager = WorkManager()
 
         # subscribe
         context = zmq.Context()
@@ -179,17 +195,17 @@ class Command(BaseCommand):
                 market_data = simplejson.loads(market_json)
 
                 if market_data['resultType'] == 'orders':
-                    if worker.need_skip():
+                    if work_manager.need_skip():
                         continue
-                    worker.queue.put(market_data)
-                    worker.update_stats()
+                    work_manager.queue.put(market_data)
+                    work_manager.update_stats()
         except KeyboardInterrupt:
             print "Caught KeyboardInterrupt, terminating workers"
-            worker.queue.close()
-            worker.process.terminate()
+            work_manager.queue.close()
+            work_manager.process.terminate()
         except Exception as e:
-            worker.queue.close()
-            worker.process.terminate()
+            work_manager.queue.close()
+            work_manager.process.terminate()
             raise e
 
 
