@@ -29,7 +29,7 @@ SENTRY_URL_PREFIX = 'http://%(domain)s'  # No trailing slash!
 SENTRY_WEB_HOST = '127.0.0.1'
 SENTRY_WEB_PORT = %(port)s
 SENTRY_WEB_OPTIONS = {
-    'workers': 3,  # the number of gunicorn workers
+    'workers': 1,  # the number of gunicorn workers
     # 'worker_class': 'gevent',
 }
 

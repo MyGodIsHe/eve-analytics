@@ -91,11 +91,8 @@ def deploy(revision, *args):
         sync_db(abs_path)
         migrate_db(abs_path)
 
-    manage_supervisor('django', 'stop')
     # What is better, migrate DB before or after dir change?
     update_link(abs_path)
-
-    manage_supervisor('django', 'start')
 
 
 def update_link(path):

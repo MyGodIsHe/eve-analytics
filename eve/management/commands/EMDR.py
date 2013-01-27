@@ -75,6 +75,7 @@ def processing(market_data):
 class Command(BaseCommand):
 
     def handle(self, *args, **options):
+        print "Start EMDR"
         context = zmq.Context()
         subscriber = context.socket(zmq.SUB)
 
