@@ -85,7 +85,6 @@ class Worker(object):
                 region_id=region_id,
                 item_type_id=rowset['typeID'],
                 station_id=row['stationID'],
-                closed_at=issue_date,
             )
             if row['solarSystemID']:
                 order.solar_system_id = row['solarSystemID']
