@@ -19,15 +19,14 @@ import re
 
 
 class Worker(object):
-    BULK_COUNT = 100
 
     def __init__(self):
         self.queue = Queue()
         self.process = Process(target=Worker.target, args=(self.queue,))
         self.process.start()
 
-        self.order_list = []
-        self.order_change_list = []
+        self.packages = 0
+        self.skip_packages = 0
 
         self.last_time = datetime.now()
 
@@ -36,6 +35,7 @@ class Worker(object):
         if current_time - self.last_time > timedelta(seconds=1):
             self.last_time = current_time
             State.set_value('emdr-queue-size', self.queue.qsize())
+            State.set_value('emdr-skip-percent', "%.2f%%" % (100.0 * self.skip_packages / self.packages))
 
     @staticmethod
     @transaction.commit_manually
@@ -158,12 +158,14 @@ class Command(BaseCommand):
         try:
             while True:
                 job_json = subscriber.recv()
-                if random.randint(1, settings.EMDR_SKEEP_VALUE) != 1:
-                    continue
                 market_json = zlib.decompress(job_json)
                 market_data = simplejson.loads(market_json)
 
                 if market_data['resultType'] == 'orders':
+                    worker.packages += 1
+                    if random.randint(0, worker.queue.qsize() / 100) != 0:
+                        worker.skip_packages += 1
+                        continue
                     worker.queue.put(market_data)
                     worker.update_stats()
         except KeyboardInterrupt:
