@@ -5,6 +5,7 @@ Data Format: http://dev.eve-central.com/unifieduploader/start
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 import zlib
+from django.db import transaction
 from django.db.utils import IntegrityError
 from django.utils.dateparse import parse_datetime
 from eve.models import Order, OrderChange, ItemType, Region, Station, SolarSystem
@@ -15,6 +16,7 @@ from django_rq import job
 
 
 @job
+@transaction.commit_on_success
 def processing(market_data):
     region_id = None
     for rowset in market_data['rowsets']:
