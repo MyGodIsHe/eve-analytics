@@ -8,4 +8,5 @@ urlpatterns = patterns('',
     url(r'^null_orders/page(?P<page>\d+)/$', 'eve.views.null_orders', name='null_orders'),
     (r'^admin/django_rq/', include('django_rq.urls')),
     url(r'^admin/', include(admin.site.urls)),
+    (r'^grappelli/', include('grappelli.urls')),
 )

@@ -9,3 +9,4 @@ django-rq
 fabric
 sentry==5.2.2
 raven
+django-grappelli
