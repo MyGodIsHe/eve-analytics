@@ -94,16 +94,18 @@ class Worker(object):
         elif row['volRemaining'] == 0:
             Order.objects.filter(id=row['orderID']).update(closed_at=issue_date)
 
-        try:
+        is_double = OrderChange.objects.filter(
+            order_id=row['orderID'],
+            price=row['price'],
+            vol_remaining=row['volRemaining'],
+        ).count()
+        if not is_double:
             OrderChange(
                 order_id=row['orderID'],
                 price=row['price'],
                 vol_remaining=row['volRemaining'],
                 issue_date=issue_date,
             ).save()
-        except IntegrityError as e:
-            if e.args[0] != 1062:
-                raise e
 
 
     def processing(self, market_data):
