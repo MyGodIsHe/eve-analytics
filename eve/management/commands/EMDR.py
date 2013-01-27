@@ -2,20 +2,25 @@
 API: https://eve-market-data-relay.readthedocs.org/en/latest/
 Data Format: http://dev.eve-central.com/unifieduploader/start
 """
-from datetime import datetime, timedelta
 import random
+import re
+from datetime import datetime, timedelta
+from multiprocessing import Process, Queue
+import zlib
+import zmq.green as zmq
+
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
-import zlib
 from django.db import transaction
 from django.db.utils import IntegrityError
 from django.utils.dateparse import parse_datetime
+from django.utils.timezone import utc
+from django.utils import simplejson
+
 from eve.models import Order, OrderChange, ItemType, Region, Station, SolarSystem, State
 
-import zmq.green as zmq
-from django.utils import simplejson
-from multiprocessing import Process, Queue
-import re
+
+tz_now = lambda: datetime.utcnow().replace(tzinfo=utc)
 
 
 class Worker(object):
@@ -105,8 +110,8 @@ class Worker(object):
         for rowset in market_data['rowsets']:
             update_key = (region_id, rowset['typeID'])
             if update_key not in self.last_update:
-                self.last_update[update_key] = datetime.now()
-            elif datetime.now() - self.last_update[update_key] < Worker.TD_LAST_UPDATE:
+                self.last_update[update_key] = tz_now()
+            elif tz_now() - self.last_update[update_key] < Worker.TD_LAST_UPDATE:
                 continue
 
             orders = []
@@ -127,10 +132,10 @@ class Worker(object):
     def entry_point(queue):
         td_interval = timedelta(seconds=settings.EMDR_TRANSACTION_INTERVAL)
         worker = Worker()
-        last_time = datetime.now()
+        last_time = tz_now()
         while True:
             worker.processing(queue.get())
-            current_time = datetime.now()
+            current_time = tz_now()
             if current_time - last_time > td_interval:
                 last_time = current_time
                 State.set_value('emdr-last-transaction', last_time)
@@ -149,9 +154,8 @@ class WorkManager(object):
         self.skip_percent_list = []
         self.packages = 0
         self.skip_packages = 0
-        self.last_time_null = datetime.now()
-
-        self.last_time = datetime.now()
+        self.last_time_null = tz_now()
+        self.last_time = tz_now()
 
     def need_skip(self):
         self.packages += 1
@@ -161,7 +165,7 @@ class WorkManager(object):
         return False
 
     def update_stats(self):
-        current_time = datetime.now()
+        current_time = tz_now()
         if current_time - self.last_time > WorkManager.TD_QUEUE_SIZE:
             self.last_time = current_time
             State.set_value('emdr-queue-size', self.queue.qsize())

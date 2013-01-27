@@ -13,3 +13,5 @@ DATABASES = {
 }
 
 SENTRY_DSN = 'http://dd44ac0702a24088abaa0d3b65a97f91:3f1411510ab34dfa85dcbb908ea48496@sentry.megail.ru/2'
+
+TIME_ZONE = 'Europe/Moscow'
