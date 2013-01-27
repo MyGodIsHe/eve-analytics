@@ -3,6 +3,7 @@ API: https://eve-market-data-relay.readthedocs.org/en/latest/
 Data Format: http://dev.eve-central.com/unifieduploader/start
 """
 from datetime import datetime, timedelta
+import random
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 import zlib
@@ -37,12 +38,19 @@ class Worker(object):
             Stat.set_value('emdr-queue-size', self.queue.qsize())
 
     @staticmethod
+    @transaction.commit_manually
     def target(queue):
         """
         Run in subprocess
         """
+        last_time = datetime.now()
         while True:
             Worker.processing(queue.get())
+            current_time = datetime.now()
+            if current_time - last_time > timedelta(seconds=settings.EMDR_TRANSACTION_INTERVAL):
+                last_time = current_time
+                Stat.set_value('emdr-last-transaction', last_time)
+                transaction.commit()
 
     @staticmethod
     def try_save(order):
@@ -50,7 +58,7 @@ class Worker(object):
         while counter < 10:
             try:
                 order.save()
-                return
+                break
             except IntegrityError as e:
                 if e.args[0] != 1452:
                     raise e
@@ -69,7 +77,6 @@ class Worker(object):
                 else:
                     raise e
             counter += 1
-        raise e
 
     @staticmethod
     def get_region(market_data):
@@ -86,7 +93,6 @@ class Worker(object):
     @staticmethod
     def processing_row(rowset, row, region_id):
         issue_date = parse_datetime(row['issueDate'])
-
 
         if not Order.objects.filter(id=row['orderID']).count():
             order = Order(
@@ -140,9 +146,7 @@ class Worker(object):
 
 class Command(BaseCommand):
 
-    def handle(self, *args, **options):
-        print "Start EMDR"
-
+    def start_worker(self):
         worker = Worker()
 
         # subscribe
@@ -154,6 +158,8 @@ class Command(BaseCommand):
         try:
             while True:
                 job_json = subscriber.recv()
+                if random.randint(1, settings.EMDR_SKEEP_VALUE) != 1:
+                    continue
                 market_json = zlib.decompress(job_json)
                 market_data = simplejson.loads(market_json)
 
@@ -164,3 +170,12 @@ class Command(BaseCommand):
             print "Caught KeyboardInterrupt, terminating workers"
             worker.queue.close()
             worker.process.terminate()
+        except Exception as e:
+            worker.queue.close()
+            worker.process.terminate()
+            raise e
+
+
+    def handle(self, *args, **options):
+        print "Start EMDR"
+        self.start_worker()
