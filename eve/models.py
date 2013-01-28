@@ -5,6 +5,9 @@ from eve.api import EVEAPI
 class ItemType(models.Model):
     name = models.CharField(max_length=255, null=True)
 
+    class Meta:
+        ordering = ['name']
+
     def __unicode__(self):
         return unicode(self.name)
 
@@ -36,12 +39,18 @@ class ItemType(models.Model):
 class Corporation(models.Model):
     name = models.CharField(max_length=255, null=True)
 
+    class Meta:
+        ordering = ['name']
+
     def __unicode__(self):
         return unicode(self.name)
 
 
 class Region(models.Model):
     name = models.CharField(max_length=255, null=True)
+
+    class Meta:
+        ordering = ['name']
 
     def __unicode__(self):
         return unicode(self.name)
@@ -67,6 +76,9 @@ class Region(models.Model):
 class SolarSystem(models.Model):
     name = models.CharField(max_length=255, null=True)
     region = models.ForeignKey(Region)
+
+    class Meta:
+        ordering = ['name']
 
     def __unicode__(self):
         return unicode(self.name)
@@ -95,6 +107,9 @@ class Station(models.Model):
     solar_system = models.ForeignKey(SolarSystem, null=True)
     solar_id = models.PositiveIntegerField(null=True)
     corporation = models.ForeignKey(Corporation, null=True)
+
+    class Meta:
+        ordering = ['name']
 
     def __unicode__(self):
         return unicode(self.name)
