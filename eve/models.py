@@ -1,10 +1,9 @@
 from django.db import models, transaction
 from eve.api import EVEAPI
-from utils import rel
 
 
 class ItemType(models.Model):
-    name = models.CharField(max_length=255)
+    name = models.CharField(max_length=255, null=True)
 
     def __unicode__(self):
         return unicode(self.name)
@@ -15,22 +14,27 @@ class ItemType(models.Model):
     def image64(self):
         return 'http://imagetest.eveonline.com/InventoryType/%i_64.png' % self.id
 
-    def name_by_id(self):
-        return EVEAPI.eve.CharacterName(ids=self.id).characters[0].name
-
     @staticmethod
     @transaction.commit_on_success
-    def update_from_eve():
-        with file(rel('raw/typeids.txt')) as f:
-            for line in f.readlines():
-                line = line.strip()
-                if line:
-                    id, name = line.split(None, 1)
-                    ItemType(pk=int(id), name=name).save()
+    def resolve_all_empty(slice_len):
+        """
+        http://wiki.eve-id.net/APIv2_Eve_TypeName_XML
+        """
+        ids = list(ItemType.objects.filter(name='').values_list('id', flat=True))
+        ids += list(ItemType.objects.filter(name__isnull=True).values_list('id', flat=True))
+        count = len(ids)
+        while True:
+            slice, ids = ids[:slice_len], ids[slice_len:]
+            if not len(slice):
+                break
+            types = EVEAPI.eve.TypeName(ids=slice).types
+            for i in types:
+                ItemType.objects.filter(id=i.typeID).update(name=i.typeName)
+        return count
 
 
 class Corporation(models.Model):
-    name = models.CharField(max_length=255)
+    name = models.CharField(max_length=255, null=True)
 
     def __unicode__(self):
         return unicode(self.name)
@@ -42,8 +46,22 @@ class Region(models.Model):
     def __unicode__(self):
         return unicode(self.name)
 
-    def name_by_id(self):
-        return EVEAPI.eve.CharacterName(ids=self.id).characters[0].name
+    @staticmethod
+    @transaction.commit_on_success
+    def resolve_all_empty(slice_len):
+        """
+        http://wiki.eve-id.net/APIv2_Eve_TypeName_XML
+        """
+        ids = Region.objects.filter(name__isnull=True).values_list('id', flat=True)
+        count = len(ids)
+        while True:
+            slice, ids = ids[:slice_len], ids[slice_len:]
+            if not len(slice):
+                break
+            characters = EVEAPI.eve.CharacterName(ids=slice).characters
+            for i in characters:
+                Region.objects.filter(id=i.characterID).update(name=i.name)
+        return count
 
 
 class SolarSystem(models.Model):
@@ -53,8 +71,22 @@ class SolarSystem(models.Model):
     def __unicode__(self):
         return unicode(self.name)
 
-    def name_by_id(self):
-        return EVEAPI.eve.CharacterName(ids=self.id).characters[0].name
+    @staticmethod
+    @transaction.commit_on_success
+    def resolve_all_empty(slice_len):
+        """
+        http://wiki.eve-id.net/APIv2_Eve_TypeName_XML
+        """
+        ids = SolarSystem.objects.filter(name__isnull=True).values_list('id', flat=True)
+        count = len(ids)
+        while True:
+            slice, ids = ids[:slice_len], ids[slice_len:]
+            if not len(slice):
+                break
+            characters = EVEAPI.eve.CharacterName(ids=slice).characters
+            for i in characters:
+                SolarSystem.objects.filter(id=i.characterID).update(name=i.name)
+        return count
 
 
 class Station(models.Model):
@@ -66,6 +98,23 @@ class Station(models.Model):
 
     def __unicode__(self):
         return unicode(self.name)
+
+    @staticmethod
+    @transaction.commit_on_success
+    def resolve_all_empty(slice_len):
+        """
+        http://wiki.eve-id.net/APIv2_Eve_TypeName_XML
+        """
+        ids = Station.objects.filter(name__isnull=True).values_list('id', flat=True)
+        count = len(ids)
+        while True:
+            slice, ids = ids[:slice_len], ids[slice_len:]
+            if not len(slice):
+                break
+            characters = EVEAPI.eve.CharacterName(ids=slice).characters
+            for i in characters:
+                Station.objects.filter(id=i.characterID).update(name=i.name)
+        return count
 
     @staticmethod
     @transaction.commit_on_success

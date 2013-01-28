@@ -287,3 +287,11 @@ def configure_mysql():
 
 def first_deploy():
     run('mkdir %s'%  LOG_DIR)
+
+def fill_empty():
+    """
+    Fill empty names in db
+    """
+    with cd(APP_DIR):
+        with prefix(env.activate):
+            run('./manage.py fill_empty')
