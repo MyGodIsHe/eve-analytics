@@ -27,10 +27,11 @@ class Worker(object):
     """
     Run in subprocess
     """
-    TD_LAST_UPDATE = timedelta(minutes=1)
+    TD_LAST_UPDATE = timedelta(minutes=10)
 
     def __init__(self):
-        self.last_update = {}
+        self.last_update_dict = {}
+        self.last_update_counter = 0
 
 
     def try_save(self, order):
@@ -115,12 +116,14 @@ class Worker(object):
 
         for rowset in market_data['rowsets']:
             update_key = (region_id, rowset['typeID'])
-            if update_key not in self.last_update:
-                self.last_update[update_key] = tz_now()
-            elif tz_now() - self.last_update[update_key] < Worker.TD_LAST_UPDATE:
+            if update_key not in self.last_update_dict:
+                self.last_update_dict[update_key] = tz_now()
+            elif tz_now() - self.last_update_dict[update_key] < Worker.TD_LAST_UPDATE:
+                self.last_update_counter += 1
                 continue
             else:
-                self.last_update[update_key] = tz_now()
+                self.last_update_counter -= 1
+                self.last_update_dict[update_key] = tz_now()
 
             orders = []
 
@@ -140,7 +143,7 @@ class Worker(object):
     @staticmethod
     @transaction.commit_manually
     def entry_point(queue):
-        td_interval = timedelta(seconds=settings.EMDR_TRANSACTION_INTERVAL)
+        td_interval = timedelta(seconds=10)
         worker = Worker()
         last_time = tz_now()
         while True:
@@ -149,6 +152,8 @@ class Worker(object):
             if current_time - last_time > td_interval:
                 last_time = current_time
                 State.set_value('emdr-last-transaction', last_time)
+                State.set_value('emdr-last-update-counter', worker.last_update_counter)
+                State.set_value('emdr-last-update-length', len(worker.last_update_dict))
                 transaction.commit()
 
 
