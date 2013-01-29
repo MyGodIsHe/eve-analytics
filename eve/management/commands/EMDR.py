@@ -27,12 +27,6 @@ class Worker(object):
     """
     Run in subprocess
     """
-    TD_LAST_UPDATE = timedelta(minutes=10)
-
-    def __init__(self):
-        self.last_update_dict = {}
-        self.last_update_counter = 0
-
 
     def try_save(self, order):
         counter = 0
@@ -115,16 +109,6 @@ class Worker(object):
             return
 
         for rowset in market_data['rowsets']:
-            update_key = (region_id, rowset['typeID'])
-            if update_key not in self.last_update_dict:
-                self.last_update_dict[update_key] = tz_now()
-            elif tz_now() - self.last_update_dict[update_key] < Worker.TD_LAST_UPDATE:
-                self.last_update_counter += 1
-                continue
-            else:
-                self.last_update_counter -= 1
-                self.last_update_dict[update_key] = tz_now()
-
             orders = []
 
             for row in rowset['rows']:
