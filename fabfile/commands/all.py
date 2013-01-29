@@ -1,50 +1,15 @@
 # Fabric deployment script
 
 from operator import methodcaller
-from fabric.context_managers import prefix, settings
-from fabric.operations import sudo as orig_sudo
-import posixpath
+from fabric.context_managers import prefix
 
 from fabric.api import run, cd, env
 from fabric.utils import fastprint
 from fabric.contrib.files import exists, upload_template
 
+from fabfile.settings import *
+from fabfile.utils import *
 
-APP_DOMAIN = 'eve.megail.ru'
-GIT_REPO = 'git@bitbucket.org:ichistyakov/eve-analytics.git'
-APP_NAME = 'www'
-APP_USER = 'eve'
-REV_DIR  = 'revisions'
-ROOT_DIR = '/home/%s/' % APP_USER
-APP_DIR  = posixpath.join(ROOT_DIR, APP_NAME)
-APP_PORT = 8001
-PUBLIC_DIR = posixpath.join(ROOT_DIR, 'public')
-SENTRY_DIR  = posixpath.join(ROOT_DIR, '.sentry')
-LOG_DIR  = posixpath.join(ROOT_DIR, 'log')
-FABFILE_DIR = 'fabfile'
-FABFILE_ABS_DIR = posixpath.join(APP_DIR, FABFILE_DIR)
-VENV_DIR  = posixpath.join(ROOT_DIR, 'venv')
-
-SENTRY_DOMAIN = 'sentry.megail.ru'
-SENTRY_PORT = 9000
-
-env.activate = 'source %s' % posixpath.join(VENV_DIR, 'bin/activate')
-sudo_user = env.user
-env.user = APP_USER
-env.use_ssh_config = True
-if not env.host_string:
-    env.host_string = '176.9.220.203'
-
-
-# fix for sudo_user
-def sudo(*args, **kwargs):
-    with settings(user=sudo_user):
-        orig_sudo(*args, **kwargs)
-
-def sudo_upload_template(*args, **kwargs):
-    kwargs["use_sudo"] = True
-    with settings(user=sudo_user):
-        upload_template(*args, **kwargs)
 
 
 def deploy_head(*args):
