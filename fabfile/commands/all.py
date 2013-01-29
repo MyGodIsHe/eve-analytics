@@ -238,13 +238,13 @@ def manage_supervisor(program, action):
 
 def install_mysql():
     """
-    Supervisor step 1
+    MySQL step 1
     """
     sudo('apt-get install mysql-server libmysqlclient-dev')
 
 def configure_mysql():
     """
-    Supervisor step 2
+    MySQL step 2
     """
     run("mysql -u root -e 'CREATE DATABASE eve CHARACTER SET utf8'")
     run("mysql -u root -e 'CREATE DATABASE sentry CHARACTER SET utf8'")
@@ -260,3 +260,7 @@ def fill_empty():
     with cd(APP_DIR):
         with prefix(env.activate):
             run('./manage.py fill_empty')
+
+
+def ubuntu_version():
+    run('cat /etc/lsb-release')

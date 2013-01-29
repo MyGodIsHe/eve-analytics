@@ -27,6 +27,12 @@ class Worker(object):
     """
     Run in subprocess
     """
+    TD_LAST_UPDATE = timedelta(minutes=10)
+
+    def __init__(self):
+        self.last_update_dict = {}
+        self.last_update_counter = 0
+
 
     def try_save(self, order):
         counter = 0
@@ -83,11 +89,7 @@ class Worker(object):
             )
             if row['solarSystemID']:
                 order.solar_system_id = row['solarSystemID']
-            #if row['volRemaining'] == 0:
-            #    order.closed_at = issue_date
             self.try_save(order)
-        #elif row['volRemaining'] == 0:
-        #    Order.objects.filter(id=row['orderID']).update(closed_at=issue_date)
 
         is_double = OrderChange.objects.filter(
             order_id=row['orderID'],
@@ -109,6 +111,16 @@ class Worker(object):
             return
 
         for rowset in market_data['rowsets']:
+            update_key = (region_id, rowset['typeID'])
+            if update_key not in self.last_update_dict:
+                self.last_update_dict[update_key] = tz_now()
+            elif tz_now() - self.last_update_dict[update_key] < Worker.TD_LAST_UPDATE:
+                self.last_update_counter += 1
+                continue
+            else:
+                self.last_update_counter -= 1
+                self.last_update_dict[update_key] = tz_now()
+
             orders = []
 
             for row in rowset['rows']:
@@ -135,15 +147,15 @@ class Worker(object):
             current_time = tz_now()
             if current_time - last_time > td_interval:
                 last_time = current_time
+                transaction.commit()
                 State.set_value('emdr-last-transaction', last_time)
-                State.set_value('emdr-last-update-counter', worker.last_update_counter)
-                State.set_value('emdr-last-update-length', len(worker.last_update_dict))
                 transaction.commit()
 
 
 class WorkManager(object):
     TD_QUEUE_SIZE = timedelta(seconds=1)
     TD_SKIP_PERCENT = timedelta(minutes=1)
+    QUEUE_SIZE_LIMIT = 1000
 
     def __init__(self):
         self.queue = Queue()
@@ -158,7 +170,7 @@ class WorkManager(object):
 
     def need_skip(self):
         self.packages += 1
-        if random.randint(0, self.queue.qsize() / 100) != 0:
+        if random.randint(0, self.queue.qsize() / WorkManager.QUEUE_SIZE_LIMIT) != 0:
             self.skip_packages += 1
             return True
         return False
@@ -171,12 +183,14 @@ class WorkManager(object):
 
             if current_time - self.last_time_null > WorkManager.TD_SKIP_PERCENT:
                 self.last_time_null = current_time
-                self.skip_percent_list.append(100.0 * self.skip_packages / self.packages)
+                last_percent = 100.0 * self.skip_packages / self.packages
+                self.skip_percent_list.append(last_percent)
                 self.skip_percent_list = self.skip_percent_list[-60:]
                 self.packages = 0
                 self.skip_packages = 0
                 percent = sum(self.skip_percent_list) / len(self.skip_percent_list)
-                State.set_value('emdr-skip-percent', "%.2f%%" % percent)
+                State.set_value('emdr-skip-percent-hour', "%.2f%%" % percent)
+                State.set_value('emdr-skip-percent-minute', "%.2f%%" % last_percent)
 
 
 
@@ -213,5 +227,5 @@ class Command(BaseCommand):
 
 
     def handle(self, *args, **options):
-        print "Start EMDR"
+        print "Start EMDR %s" % tz_now()
         self.start_worker()
