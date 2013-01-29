@@ -44,7 +44,7 @@ class OrderAdmin(admin.ModelAdmin):
     inlines = [
         OrderChangeInline,
     ]
-    search_fields = ('solar_system__name', 'station__name')
+    search_fields = ('item_type__name', 'solar_system__name', 'station__name')
     list_filter = ('bid', 'region')
 
 admin.site.register(Order, OrderAdmin)
