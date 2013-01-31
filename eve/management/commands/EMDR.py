@@ -2,10 +2,12 @@
 API: https://eve-market-data-relay.readthedocs.org/en/latest/
 Data Format: http://dev.eve-central.com/unifieduploader/start
 """
+from collections import deque
 import random
 import re
 from datetime import datetime, timedelta
 from multiprocessing import Process, Queue
+from thread import allocate_lock, start_new_thread
 import zlib
 import signal
 import sys
@@ -32,13 +34,19 @@ class DataStore(object):
 
     def __init__(self):
         self.__rowsets = {}
-        self.news = Queue()
+        self.news = deque()
 
-        self.process = Process(target=DataStore.entry_point, args=(self.news, ))
+        self.lock = allocate_lock()
+        self.connection = Queue(1)
+        self.process = Process(target=DataStore.entry_point, args=(self.connection, ))
         self.process.start()
 
-        self.packages = 0
-        self.skip_packages = 0
+        start_new_thread(DataStore.news_connector, (self,))
+
+        self.state_packages = 0
+        self.state_skip_packages = 0
+        self.state_rows = 0
+        self.state_skip_rows = 0
         self.last_time_null = tz_now()
 
     def put(self, market_data):
@@ -57,14 +65,19 @@ class DataStore(object):
             rowset['columns'] = market_data['columns']
             rowset['regionID'] = region_id
 
+            self.state_rows += 1
+
             if data_key in self.__rowsets and\
-               now - self.__rowsets[data_key] < DataStore.TD_SKIP_BY_KEY:
+               now - self.__rowsets[data_key][0] < DataStore.TD_SKIP_BY_KEY:
+                self.state_skip_rows += 1
                 continue
 
-            self.__rowsets[data_key] = now
+            self.__rowsets[data_key] = [now, rowset]
 
             if not self.need_skip():
-                self.news.put(rowset)
+                self.lock.acquire()
+                self.news.appendleft(data_key)
+                self.lock.release()
 
         self.update_stats()
 
@@ -72,30 +85,43 @@ class DataStore(object):
         current_time = tz_now()
         if current_time - self.last_time_null > DataStore.TD_UPDATE_STATE:
             self.last_time_null = current_time
-            last_percent = 100.0 * self.skip_packages / self.packages
-            self.packages = 0
-            self.skip_packages = 0
-            SkipChart.objects.create(percent=last_percent, queue_size=self.news.qsize())
+            package_percent = 100.0 * self.state_skip_packages / self.state_packages
+            self.state_packages = 0
+            self.state_skip_packages = 0
+            row_percent = 100.0 * self.state_skip_rows / self.state_rows
+            self.state_rows = 0
+            self.state_skip_rows = 0
+            SkipChart.objects.create(package_percent=package_percent, row_percent=row_percent, queue_size=len(self.news))
 
     def close(self):
         self.process.terminate()
-        self.news.close()
+        self.connection.close()
 
     def need_skip(self):
-        self.packages += 1
-        if random.randint(0, self.news.qsize() / DataStore.QUEUE_SIZE_LIMIT) != 0:
-            self.skip_packages += 1
+        self.state_packages += 1
+        if random.randint(0, len(self.news) / DataStore.QUEUE_SIZE_LIMIT) != 0:
+            self.state_skip_packages += 1
             return True
         return False
 
+    def news_connector(self):
+        while True:
+            if not len(self.news):
+                continue
+            self.lock.acquire()
+            key = self.news.pop()
+            data = self.__rowsets.pop(key)[1]
+            self.lock.release()
+            self.connection.put(data)
+
     @staticmethod
     @transaction.commit_manually
-    def entry_point(news):
+    def entry_point(connection):
         td_interval = timedelta(seconds=10)
         worker = Worker()
         last_time = tz_now()
         while True:
-            worker.processing(news.get())
+            worker.processing(connection.get())
             current_time = tz_now()
             if current_time - last_time > td_interval:
                 last_time = current_time

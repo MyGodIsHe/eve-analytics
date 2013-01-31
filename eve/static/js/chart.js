@@ -46,14 +46,15 @@ function initChart(get_data_url, placeholder1, placeholder2) {
                 last_time = data[data.length - 1][0];
 
                 // zip the generated y values with the x values
-                var graph1 = [], graph2 = [];
+                var graph1 = [], graph2 = [], graph3 = [];
                 for (var i = 0; i < data.length; ++i) {
                     graph1.push([data[i][0], data[i][1][0]]);
                     graph2.push([data[i][0], data[i][1][1]]);
+                    graph3.push([data[i][0], data[i][1][2]]);
                 }
 
-                $.plot(placeholder1, [ graph1 ], options);
-                $.plot(placeholder2, [ graph2 ], options);
+                $.plot(placeholder1, [ graph1, graph2 ], options);
+                $.plot(placeholder2, [ graph3 ], options);
             }
         });
     }

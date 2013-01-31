@@ -202,6 +202,7 @@ class State(models.Model):
 
 
 class SkipChart(models.Model):
-    queue_size = models.FloatField()
-    percent = models.FloatField()
+    queue_size = models.IntegerField()
+    package_percent = models.FloatField()
+    row_percent = models.FloatField()
     create_at = models.DateTimeField(auto_now_add=True)
