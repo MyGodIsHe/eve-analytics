@@ -29,7 +29,7 @@ class Worker(object):
     """
     Run in subprocess
     """
-    TD_LAST_UPDATE = timedelta(minutes=10)
+    TD_SKIP_BY_KEY = getattr(settings, 'TD_SKIP_BY_KEY', timedelta(minutes=10))
 
     def __init__(self):
         self.last_update_dict = {}
@@ -106,7 +106,7 @@ class Worker(object):
         update_key = (region_id, type_id)
         if update_key not in self.last_update_dict:
             pass
-        elif tz_now() - self.last_update_dict[update_key] < Worker.TD_LAST_UPDATE:
+        elif tz_now() - self.last_update_dict[update_key] < Worker.TD_SKIP_BY_KEY:
             return False
 
 
@@ -155,8 +155,8 @@ class Worker(object):
 
 class WorkManager(object):
 
-    TD_UPDATE_STATE = timedelta(minutes=1)
-    QUEUE_SIZE_LIMIT = 1000
+    TD_UPDATE_STATE = getattr(settings, 'TD_UPDATE_STATE', timedelta(minutes=1))
+    QUEUE_SIZE_LIMIT = getattr(settings, 'QUEUE_SIZE_LIMIT', 1000)
 
     def __init__(self):
         self.queue = Queue()
