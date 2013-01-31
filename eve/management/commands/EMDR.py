@@ -17,7 +17,7 @@ from django.utils.dateparse import parse_datetime
 from django.utils.timezone import utc
 from django.utils import simplejson
 
-from eve.models import Order, OrderChange, ItemType, Region, Station, SolarSystem, State
+from eve.models import Order, OrderChange, ItemType, Region, Station, SolarSystem, State, SkipChart
 
 
 tz_now = lambda: datetime.utcnow().replace(tzinfo=utc)
@@ -161,7 +161,6 @@ class WorkManager(object):
         self.process = Process(target=Worker.entry_point, args=(self.queue,))
         self.process.start()
 
-        self.skip_percent_list = []
         self.packages = 0
         self.skip_packages = 0
         self.last_time_null = tz_now()
@@ -189,13 +188,9 @@ class WorkManager(object):
             if current_time - self.last_time_null > WorkManager.TD_SKIP_PERCENT:
                 self.last_time_null = current_time
                 last_percent = 100.0 * self.skip_packages / self.packages
-                self.skip_percent_list.append(last_percent)
-                self.skip_percent_list = self.skip_percent_list[-60:]
                 self.packages = 0
                 self.skip_packages = 0
-                percent = sum(self.skip_percent_list) / len(self.skip_percent_list)
-                State.set_value('emdr-skip-percent-hour', "%.2f%%" % percent)
-                State.set_value('emdr-skip-percent-minute', "%.2f%%" % last_percent)
+                SkipChart.objects.create(value=last_percent)
 
     def loop(self):
         try:

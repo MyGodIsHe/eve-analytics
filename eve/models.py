@@ -185,8 +185,6 @@ class State(models.Model):
     name = models.CharField(unique=True, db_index=True, max_length=255)
     value = models.CharField(max_length=255)
 
-
-
     @staticmethod
     def get_value(name, default=''):
         return State.objects.get_or_create(name=name,
@@ -201,3 +199,8 @@ class State(models.Model):
     def set_value(name, value):
         if not State.objects.filter(name=name).update(value=str(value)):
             State(name=name, value=value).save()
+
+
+class SkipChart(models.Model):
+    value = models.FloatField()
+    create_at = models.DateTimeField(auto_now_add=True)

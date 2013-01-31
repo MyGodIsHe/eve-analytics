@@ -1,9 +1,72 @@
 {% extends 'base.html' %}
-{% load i18n %}
+{% load staticfiles i18n %}
 
 {% block title %}{% trans 'Home' %}{% endblock %}
 
+{% block head %}
+
+{% endblock %}
+
+{% block foot %}
+    <script language="javascript" type="text/javascript" src="{% static 'lib/jquery.flot.js' %}"></script>
+    <script>
+        $(function () {
+            var updateInterval = 30 * 1000,
+                data = [],
+                totalPoints = 60,
+                last_time,
+                placeholder = $("#skip_chart"),
+                options = {
+                    series: { shadowSize: 0 }, // drawing is faster without shadows
+                    yaxis: { min: 0 },
+                    xaxis: {
+                        mode: "time",
+                        minTickSize: [1, "minute"]
+                    }
+                },
+
+                plot = $.plot(placeholder, [ ], options);
+
+            function updateData() {
+                var max_count, url;
+
+                if (totalPoints == data.length)
+                    max_count = 1;
+                else
+                    max_count = totalPoints - data.length;
+
+                url = '{% url get_skip_data %}?max_count='+max_count;
+                if (last_time)
+                    url += '&last_time='+last_time;
+                $.get(url, function (response_data) {
+                    if (response_data) {
+                        data.push.apply(data, response_data);
+                        data = data.slice(data.length - totalPoints);
+
+                        last_time = data[data.length - 1][1];
+
+                        $.plot(placeholder, [ data ], options);
+                    }
+                });
+
+
+            }
+
+            function update() {
+                updateData();
+                setTimeout(update, updateInterval);
+            }
+
+            update();
+        });
+    </script>
+{% endblock %}
+
 {% block container %}
+    <div class="page-header">
+        <h1>Skip Chart</h1>
+        <div id="skip_chart" style="height:300px;"></div>
+    </div>
     <div class="page-header">
         <h1>State List</h1>
     </div>
