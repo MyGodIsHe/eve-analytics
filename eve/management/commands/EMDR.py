@@ -31,8 +31,6 @@ class Worker(object):
 
     def __init__(self):
         self.last_update_dict = {}
-        self.last_update_counter = 0
-
 
     def try_save(self, order):
         counter = 0
@@ -59,7 +57,6 @@ class Worker(object):
                     raise e
             counter += 1
 
-
     def get_region_id(self, market_data):
         region_id = None
         for rowset in market_data['rowsets']:
@@ -70,7 +67,6 @@ class Worker(object):
             return
 
         return region_id
-
 
     def processing_row(self, rowset, row, region_id):
         issue_date = parse_datetime(row['issueDate'])
@@ -104,6 +100,17 @@ class Worker(object):
                 issue_date=issue_date,
             ).save()
 
+    def need_update(self, region_id, type_id):
+        update_key = (region_id, type_id)
+        if update_key not in self.last_update_dict:
+            pass
+        elif tz_now() - self.last_update_dict[update_key] < Worker.TD_LAST_UPDATE:
+            return False
+
+
+        self.last_update_dict[update_key] = tz_now()
+
+        return True
 
     def processing(self, market_data):
         region_id = self.get_region_id(market_data)
@@ -111,15 +118,8 @@ class Worker(object):
             return
 
         for rowset in market_data['rowsets']:
-            update_key = (region_id, rowset['typeID'])
-            if update_key not in self.last_update_dict:
-                self.last_update_dict[update_key] = tz_now()
-            elif tz_now() - self.last_update_dict[update_key] < Worker.TD_LAST_UPDATE:
-                self.last_update_counter += 1
+            if not self.need_update(region_id, rowset['typeID']):
                 continue
-            else:
-                self.last_update_counter -= 1
-                self.last_update_dict[update_key] = tz_now()
 
             orders = []
 
@@ -134,7 +134,6 @@ class Worker(object):
                     closed_at__isnull=True).\
                 exclude(id__in=orders).\
                 update(closed_at=parse_datetime(rowset['generatedAt']))
-
 
     @staticmethod
     @transaction.commit_manually
@@ -168,6 +167,12 @@ class WorkManager(object):
         self.last_time_null = tz_now()
         self.last_time = tz_now()
 
+        # subscribe
+        context = zmq.Context()
+        self.subscriber = context.socket(zmq.SUB)
+        self.subscriber.connect(settings.EMDR_URL)
+        self.subscriber.setsockopt(zmq.SUBSCRIBE, "")
+
     def need_skip(self):
         self.packages += 1
         if random.randint(0, self.queue.qsize() / WorkManager.QUEUE_SIZE_LIMIT) != 0:
@@ -192,40 +197,30 @@ class WorkManager(object):
                 State.set_value('emdr-skip-percent-hour', "%.2f%%" % percent)
                 State.set_value('emdr-skip-percent-minute', "%.2f%%" % last_percent)
 
-
-
-class Command(BaseCommand):
-
-    def start_worker(self):
-        work_manager = WorkManager()
-
-        # subscribe
-        context = zmq.Context()
-        subscriber = context.socket(zmq.SUB)
-        subscriber.connect(settings.EMDR_URL)
-        subscriber.setsockopt(zmq.SUBSCRIBE, "")
-
+    def loop(self):
         try:
             while True:
-                job_json = subscriber.recv()
+                job_json = self.subscriber.recv()
                 market_json = zlib.decompress(job_json)
                 market_data = simplejson.loads(market_json)
 
                 if market_data['resultType'] == 'orders':
-                    if work_manager.need_skip():
+                    if self.need_skip():
                         continue
-                    work_manager.queue.put(market_data)
-                    work_manager.update_stats()
+                    self.queue.put(market_data)
+                    self.update_stats()
         except KeyboardInterrupt:
             print "Caught KeyboardInterrupt, terminating workers"
-            work_manager.queue.close()
-            work_manager.process.terminate()
+            self.queue.close()
+            self.process.terminate()
         except Exception as e:
-            work_manager.queue.close()
-            work_manager.process.terminate()
+            self.queue.close()
+            self.process.terminate()
             raise e
 
 
+class Command(BaseCommand):
+
     def handle(self, *args, **options):
-        print "Start EMDR %s" % tz_now()
-        self.start_worker()
+        print "EMDR Start Time: %s" % tz_now().strftime('%Y-%m-%d %H:%M')
+        WorkManager().loop()
