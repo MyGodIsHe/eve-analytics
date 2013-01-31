@@ -10,18 +10,43 @@
 {% block foot %}
     <script language="javascript" type="text/javascript" src="{% static 'lib/jquery.flot.js' %}"></script>
     <script>
+        function showTooltip(x, y, contents) {
+            $("<div id='tooltip'>" + contents + "</div>").css({
+                position: "absolute",
+                display: "none",
+                top: y + 5,
+                left: x + 5,
+                border: "1px solid #fdd",
+                padding: "2px",
+                "background-color": "#fee",
+                opacity: 0.80
+            }).appendTo("body").fadeIn(200);
+        }
+
         $(function () {
             var updateInterval = 30 * 1000,
                 data = [],
-                totalPoints = 60,
+                totalPoints = 24 * 60 * 60,
                 last_time,
+                previousPoint = null,
                 placeholder = $("#skip_chart"),
                 options = {
-                    series: { shadowSize: 0 }, // drawing is faster without shadows
+                    series: {
+                        lines: {
+                            show: true
+                        },
+                        points: {
+                            show: true
+                        }
+                    },
+                    grid: {
+                        hoverable: true,
+                        clickable: true
+                    },
                     yaxis: { min: 0 },
                     xaxis: {
                         mode: "time",
-                        minTickSize: [1, "minute"]
+                        minTickSize: [30, "minute"]
                     }
                 },
 
@@ -43,13 +68,11 @@
                         data.push.apply(data, response_data);
                         data = data.slice(data.length - totalPoints);
 
-                        last_time = data[data.length - 1][1];
+                        last_time = data[data.length - 1][0];
 
                         $.plot(placeholder, [ data ], options);
                     }
                 });
-
-
             }
 
             function update() {
@@ -58,6 +81,24 @@
             }
 
             update();
+
+            placeholder.bind("plothover", function (event, pos, item) {
+                if (item) {
+                    if (previousPoint != item.dataIndex) {
+
+                        previousPoint = item.dataIndex;
+
+                        $("#tooltip").remove();
+                        var x = item.datapoint[0].toFixed(2),
+                                y = item.datapoint[1].toFixed(2);
+
+                        showTooltip(item.pageX, item.pageY, y + "%");
+                    }
+                } else {
+                    $("#tooltip").remove();
+                    previousPoint = null;
+                }
+            });
         });
     </script>
 {% endblock %}

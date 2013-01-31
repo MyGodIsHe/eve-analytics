@@ -4,6 +4,7 @@ from django.db.models import Count
 from django.http import HttpResponse, HttpResponseBadRequest
 from django.shortcuts import render
 from django.utils import simplejson
+from django.utils.timezone import utc
 from django.views.decorators.cache import never_cache
 from django.contrib.auth import REDIRECT_FIELD_NAME
 from django.utils.translation import ugettext as _
@@ -89,10 +90,10 @@ def get_skip_data(request):
             create_at = datetime.datetime.fromtimestamp(float(last_time) / 1000)
         except (ValueError, TypeError):
             return HttpResponseBadRequest()
-        data = SkipChart.objects.filter(create_at__gt=create_at)
+        data = SkipChart.objects.filter(create_at__gt=create_at.replace(tzinfo=utc))
     else:
         data = SkipChart.objects
     data = data.order_by('-id')[:max_count].values_list('create_at', 'value')
-    data = [(time.mktime(create_at.timetuple()) * 1000, value) for create_at, value in data]
+    data = [(int(time.mktime(create_at.timetuple()) * 1000), value) for create_at, value in data]
     data.reverse()
     return HttpResponse(simplejson.dumps(data), mimetype="application/json")
