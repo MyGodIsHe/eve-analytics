@@ -25,14 +25,92 @@ from eve.models import Order, OrderChange, ItemType, Region, Station, SolarSyste
 tz_now = lambda: datetime.utcnow().replace(tzinfo=utc)
 
 
+class DataStore(object):
+    QUEUE_SIZE_LIMIT = getattr(settings, 'QUEUE_SIZE_LIMIT', 1000)
+    TD_UPDATE_STATE = getattr(settings, 'TD_UPDATE_STATE', timedelta(minutes=1))
+    TD_SKIP_BY_KEY = getattr(settings, 'TD_SKIP_BY_KEY', timedelta(minutes=10))
+
+    def __init__(self):
+        self.__rowsets = {}
+        self.news = Queue()
+
+        self.process = Process(target=DataStore.entry_point, args=(self.news, ))
+        self.process.start()
+
+        self.packages = 0
+        self.skip_packages = 0
+        self.last_time_null = tz_now()
+
+    def put(self, market_data):
+        region_id = None
+        for rowset in market_data['rowsets']:
+            if rowset['regionID']:
+                region_id = rowset['regionID']
+                break
+        if not region_id:
+            return
+
+        now = tz_now()
+
+        for rowset in market_data['rowsets']:
+            data_key = (region_id, rowset['typeID'])
+            rowset['columns'] = market_data['columns']
+            rowset['regionID'] = region_id
+
+            if data_key in self.__rowsets and\
+               now - self.__rowsets[data_key] < DataStore.TD_SKIP_BY_KEY:
+                continue
+
+            self.__rowsets[data_key] = now
+
+            if not self.need_skip():
+                self.news.put(rowset)
+
+        self.update_stats()
+
+    def update_stats(self):
+        current_time = tz_now()
+        if current_time - self.last_time_null > DataStore.TD_UPDATE_STATE:
+            self.last_time_null = current_time
+            last_percent = 100.0 * self.skip_packages / self.packages
+            self.packages = 0
+            self.skip_packages = 0
+            SkipChart.objects.create(percent=last_percent, queue_size=self.news.qsize())
+
+    def close(self):
+        self.process.terminate()
+        self.news.close()
+
+    def need_skip(self):
+        self.packages += 1
+        if random.randint(0, self.news.qsize() / DataStore.QUEUE_SIZE_LIMIT) != 0:
+            self.skip_packages += 1
+            return True
+        return False
+
+    @staticmethod
+    @transaction.commit_manually
+    def entry_point(news):
+        td_interval = timedelta(seconds=10)
+        worker = Worker()
+        last_time = tz_now()
+        while True:
+            worker.processing(news.get())
+            current_time = tz_now()
+            if current_time - last_time > td_interval:
+                last_time = current_time
+                transaction.commit()
+                State.set_value('emdr-last-transaction', last_time)
+                transaction.commit()
+
+
 class Worker(object):
     """
     Run in subprocess
     """
-    TD_SKIP_BY_KEY = getattr(settings, 'TD_SKIP_BY_KEY', timedelta(minutes=10))
 
     def __init__(self):
-        self.last_update_dict = {}
+        self.data_dict = {}
 
     def try_save(self, order):
         counter = 0
@@ -42,10 +120,10 @@ class Worker(object):
                 break
             except IntegrityError as e:
                 if e.args[0] != 1452:
-                    raise e
+                    raise
                 result = re.search(r'FOREIGN KEY \(`(\w+)`\)', e.args[1])
                 if not result:
-                    raise e
+                    raise
                 result = result.group(1)
                 if result == 'item_type_id':
                     ItemType(id=order.item_type_id).save()
@@ -56,19 +134,8 @@ class Worker(object):
                 elif result == 'solar_system_id':
                     SolarSystem(id=order.solar_system_id, region_id=order.region_id).save()
                 else:
-                    raise e
+                    raise
             counter += 1
-
-    def get_region_id(self, market_data):
-        region_id = None
-        for rowset in market_data['rowsets']:
-            if rowset['regionID']:
-                region_id = rowset['regionID']
-                break
-        if not region_id:
-            return
-
-        return region_id
 
     def processing_row(self, rowset, row, region_id):
         issue_date = parse_datetime(row['issueDate'])
@@ -102,70 +169,26 @@ class Worker(object):
                 issue_date=issue_date,
             ).save()
 
-    def need_update(self, region_id, type_id):
-        update_key = (region_id, type_id)
-        if update_key not in self.last_update_dict:
-            pass
-        elif tz_now() - self.last_update_dict[update_key] < Worker.TD_SKIP_BY_KEY:
-            return False
+    def processing(self, rowset):
+        orders = []
 
+        for row in rowset['rows']:
+            row = dict(zip(rowset['columns'], row))
+            self.processing_row(rowset, row, rowset['regionID'])
+            orders.append(row['orderID'])
 
-        self.last_update_dict[update_key] = tz_now()
-
-        return True
-
-    def processing(self, market_data):
-        region_id = self.get_region_id(market_data)
-        if not region_id:
-            return
-
-        for rowset in market_data['rowsets']:
-            if not self.need_update(region_id, rowset['typeID']):
-                continue
-
-            orders = []
-
-            for row in rowset['rows']:
-                row = dict(zip(market_data['columns'], row))
-                self.processing_row(rowset, row, region_id)
-                orders.append(row['orderID'])
-
-            Order.objects.\
-                filter(region_id=region_id,
-                    item_type_id=rowset['typeID'],
-                    closed_at__isnull=True).\
-                exclude(id__in=orders).\
-                update(closed_at=parse_datetime(rowset['generatedAt']))
-
-    @staticmethod
-    @transaction.commit_manually
-    def entry_point(queue):
-        td_interval = timedelta(seconds=10)
-        worker = Worker()
-        last_time = tz_now()
-        while True:
-            worker.processing(queue.get())
-            current_time = tz_now()
-            if current_time - last_time > td_interval:
-                last_time = current_time
-                transaction.commit()
-                State.set_value('emdr-last-transaction', last_time)
-                transaction.commit()
+        Order.objects.\
+            filter(region_id=rowset['regionID'],
+                item_type_id=rowset['typeID'],
+                closed_at__isnull=True).\
+            exclude(id__in=orders).\
+            update(closed_at=parse_datetime(rowset['generatedAt']))
 
 
 class WorkManager(object):
 
-    TD_UPDATE_STATE = getattr(settings, 'TD_UPDATE_STATE', timedelta(minutes=1))
-    QUEUE_SIZE_LIMIT = getattr(settings, 'QUEUE_SIZE_LIMIT', 1000)
-
     def __init__(self):
-        self.queue = Queue()
-        self.process = Process(target=Worker.entry_point, args=(self.queue,))
-        self.process.start()
-
-        self.packages = 0
-        self.skip_packages = 0
-        self.last_time_null = tz_now()
+        self.data_store = DataStore()
 
         # subscribe
         context = zmq.Context()
@@ -173,27 +196,10 @@ class WorkManager(object):
         self.subscriber.connect(settings.EMDR_URL)
         self.subscriber.setsockopt(zmq.SUBSCRIBE, "")
 
-    def need_skip(self):
-        self.packages += 1
-        if random.randint(0, self.queue.qsize() / WorkManager.QUEUE_SIZE_LIMIT) != 0:
-            self.skip_packages += 1
-            return True
-        return False
-
-    def update_stats(self):
-        current_time = tz_now()
-        if current_time - self.last_time_null > WorkManager.TD_UPDATE_STATE:
-            self.last_time_null = current_time
-            last_percent = 100.0 * self.skip_packages / self.packages
-            self.packages = 0
-            self.skip_packages = 0
-            SkipChart.objects.create(percent=last_percent, queue_size=self.queue.qsize())
-
     def loop(self):
         def terminate(signnum, frame):
             print "Terminating workers"
-            self.queue.close()
-            self.process.terminate()
+            self.data_store.close()
             sys.exit()
         signal.signal(signal.SIGTERM, terminate)
 
@@ -204,18 +210,13 @@ class WorkManager(object):
                 market_data = simplejson.loads(market_json)
 
                 if market_data['resultType'] == 'orders':
-                    if self.need_skip():
-                        continue
-                    self.queue.put(market_data)
-                    self.update_stats()
+                    self.data_store.put(market_data)
         except (KeyboardInterrupt, SystemExit):
             print "Terminating workers"
-            self.queue.close()
-            self.process.terminate()
-        except Exception as e:
-            self.queue.close()
-            self.process.terminate()
-            raise e
+            self.data_store.close()
+        except Exception:
+            self.data_store.close()
+            raise
 
 
 class Command(BaseCommand):
