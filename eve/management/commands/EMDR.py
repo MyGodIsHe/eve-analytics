@@ -152,8 +152,8 @@ class Worker(object):
 
 
 class WorkManager(object):
-    TD_QUEUE_SIZE = timedelta(seconds=1)
-    TD_SKIP_PERCENT = timedelta(minutes=1)
+
+    TD_UPDATE_STATE = timedelta(minutes=1)
     QUEUE_SIZE_LIMIT = 1000
 
     def __init__(self):
@@ -164,7 +164,6 @@ class WorkManager(object):
         self.packages = 0
         self.skip_packages = 0
         self.last_time_null = tz_now()
-        self.last_time = tz_now()
 
         # subscribe
         context = zmq.Context()
@@ -181,16 +180,12 @@ class WorkManager(object):
 
     def update_stats(self):
         current_time = tz_now()
-        if current_time - self.last_time > WorkManager.TD_QUEUE_SIZE:
-            self.last_time = current_time
-            State.set_value('emdr-queue-size', self.queue.qsize())
-
-            if current_time - self.last_time_null > WorkManager.TD_SKIP_PERCENT:
-                self.last_time_null = current_time
-                last_percent = 100.0 * self.skip_packages / self.packages
-                self.packages = 0
-                self.skip_packages = 0
-                SkipChart.objects.create(value=last_percent)
+        if current_time - self.last_time_null > WorkManager.TD_UPDATE_STATE:
+            self.last_time_null = current_time
+            last_percent = 100.0 * self.skip_packages / self.packages
+            self.packages = 0
+            self.skip_packages = 0
+            SkipChart.objects.create(percent=last_percent, queue_size=self.queue.qsize())
 
     def loop(self):
         try:
@@ -204,8 +199,8 @@ class WorkManager(object):
                         continue
                     self.queue.put(market_data)
                     self.update_stats()
-        except KeyboardInterrupt:
-            print "Caught KeyboardInterrupt, terminating workers"
+        except (KeyboardInterrupt, SystemExit):
+            print "Terminating workers"
             self.queue.close()
             self.process.terminate()
         except Exception as e:
