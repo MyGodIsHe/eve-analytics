@@ -7,6 +7,7 @@ import re
 from datetime import datetime, timedelta
 from multiprocessing import Process, Queue
 import zlib
+import signal
 import zmq.green as zmq
 
 from django.conf import settings
@@ -188,6 +189,12 @@ class WorkManager(object):
             SkipChart.objects.create(percent=last_percent, queue_size=self.queue.qsize())
 
     def loop(self):
+        def terminate(signnum, frame):
+            print "Terminating workers"
+            self.queue.close()
+            self.process.terminate()
+        signal.signal(signal.SIGTERM, terminate)
+
         try:
             while True:
                 job_json = self.subscriber.recv()
