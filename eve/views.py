@@ -90,10 +90,12 @@ def get_skip_data(request):
             create_at = datetime.datetime.fromtimestamp(float(last_time) / 1000)
         except (ValueError, TypeError):
             return HttpResponseBadRequest()
-        data = SkipChart.objects.filter(create_at__gt=create_at.replace(tzinfo=utc))
+        query = SkipChart.objects.filter(create_at__gt=create_at.replace(tzinfo=utc))
     else:
-        data = SkipChart.objects
-    data = data.order_by('-id')[:max_count].values_list('create_at', 'value')
-    data = [(int(time.mktime(create_at.timetuple()) * 1000), value) for create_at, value in data]
+        query = SkipChart.objects
+    query = query.order_by('-id')[:max_count]
+    data = query.values_list('create_at', 'percent', 'queue_size')
+    data = [(int(time.mktime(create_at.timetuple()) * 1000), (percent, queue_size))
+            for create_at, percent, queue_size in data]
     data.reverse()
     return HttpResponse(simplejson.dumps(data), mimetype="application/json")
