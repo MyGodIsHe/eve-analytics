@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 from multiprocessing import Process, Queue
 import zlib
 import signal
+import sys
 import zmq.green as zmq
 
 from django.conf import settings
@@ -193,6 +194,7 @@ class WorkManager(object):
             print "Terminating workers"
             self.queue.close()
             self.process.terminate()
+            sys.exit()
         signal.signal(signal.SIGTERM, terminate)
 
         try:
