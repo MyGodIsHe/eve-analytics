@@ -4,7 +4,7 @@ from django.db.models import Count
 from django.http import HttpResponse, HttpResponseBadRequest
 from django.shortcuts import render
 from django.utils import simplejson
-from django.utils.timezone import utc
+from django.utils.dateparse import parse_datetime
 from django.views.decorators.cache import never_cache
 from django.contrib.auth import REDIRECT_FIELD_NAME
 from django.utils.translation import ugettext as _
@@ -86,15 +86,15 @@ def get_skip_data(request):
         return HttpResponseBadRequest()
 
     if last_time:
-        try:
-            create_at = datetime.datetime.fromtimestamp(float(last_time) / 1000)
-        except (ValueError, TypeError):
+        print last_time
+        create_at = parse_datetime(last_time)
+        if not create_at:
             return HttpResponseBadRequest()
-        query = SkipChart.objects.filter(create_at__gt=create_at.replace(tzinfo=utc))
+        query = SkipChart.objects.filter(create_at__gt=create_at)
     else:
         query = SkipChart.objects
     query = query.order_by('-id')[:max_count]
     data = query.values_list('create_at', 'package_percent', 'row_percent', 'queue_size')
-    data = [(int(time.mktime(i[0].timetuple()) * 1000), i[1:]) for i in data]
+    data = [(str(i[0]), i[1:]) for i in data]
     data.reverse()
     return HttpResponse(simplejson.dumps(data), mimetype="application/json")

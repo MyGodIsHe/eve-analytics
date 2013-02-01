@@ -20,7 +20,8 @@ function initChart(get_data_url, placeholder1, placeholder2) {
             yaxis: { min: 0 },
             xaxis: {
                 mode: "time",
-                minTickSize: [30, "minute"]
+                timezone: "browser",
+                minTickSize: [1, "minute"]
             }
         };
 
@@ -37,7 +38,7 @@ function initChart(get_data_url, placeholder1, placeholder2) {
 
         url = get_data_url+'?max_count='+max_count;
         if (last_time)
-            url += '&last_time='+last_time;
+            url += '&last_time='+encodeURIComponent(last_time);
         $.get(url, function (response_data) {
             if (response_data) {
                 data.push.apply(data, response_data);
@@ -48,9 +49,10 @@ function initChart(get_data_url, placeholder1, placeholder2) {
                 // zip the generated y values with the x values
                 var graph1 = [], graph2 = [], graph3 = [];
                 for (var i = 0; i < data.length; ++i) {
-                    graph1.push([data[i][0], data[i][1][0]]);
-                    graph2.push([data[i][0], data[i][1][1]]);
-                    graph3.push([data[i][0], data[i][1][2]]);
+                    var date = new Date(data[i][0]);
+                    graph1.push([date, data[i][1][0]]);
+                    graph2.push([date, data[i][1][1]]);
+                    graph3.push([date, data[i][1][2]]);
                 }
 
                 $.plot(placeholder1, [ graph1, graph2 ], options);

@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-{% load staticfiles i18n %}
+{% load staticfiles i18n tz %}
 
 {% block title %}{% trans 'Home' %}{% endblock %}
 
@@ -9,9 +9,9 @@
 
 {% block foot %}
     <script language="javascript" type="text/javascript" src="{% static 'lib/jquery.flot.js' %}"></script>
+    <script language="javascript" type="text/javascript" src="{% static 'lib/jquery.flot.time.js' %}"></script>
     <script language="javascript" type="text/javascript" src="{% static 'js/chart.js' %}"></script>
     <script>
-
         $(function () {
             initChart('{% url get_skip_data %}', $("#skip_chart_percent"), $("#skip_chart_size"));
         });

@@ -18,13 +18,13 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 from django.db.utils import IntegrityError
 from django.utils.dateparse import parse_datetime
-from django.utils.timezone import utc
+from django.utils.timezone import get_current_timezone
 from django.utils import simplejson
 
 from eve.models import Order, OrderChange, ItemType, Region, Station, SolarSystem, State, SkipChart
 
 
-tz_now = lambda: datetime.utcnow().replace(tzinfo=utc)
+tz_now = lambda: datetime.now().replace(tzinfo=get_current_timezone())
 
 
 class DataStore(object):
