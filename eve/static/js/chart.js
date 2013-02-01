@@ -21,7 +21,7 @@ function initChart(get_data_url, placeholder1, placeholder2) {
             xaxis: {
                 mode: "time",
                 timezone: "browser",
-                minTickSize: [1, "minute"]
+                minTickSize: [30, "minute"]
             }
         };
 
