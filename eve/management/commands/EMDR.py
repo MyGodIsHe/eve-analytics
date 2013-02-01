@@ -99,7 +99,11 @@ class DataStore(object):
 
     def need_skip(self):
         self.state_packages += 1
-        if random.random() * len(self.news) / DataStore.QUEUE_SIZE_LIMIT > 1:
+        ln = len(self.news)
+        if ln <= DataStore.QUEUE_SIZE_LIMIT:
+            return False
+        k = (ln / DataStore.QUEUE_SIZE_LIMIT) - 1
+        if random.random() * (1 + k * k) > 1:
             self.state_skip_packages += 1
             return True
         return False
