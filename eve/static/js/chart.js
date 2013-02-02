@@ -2,8 +2,10 @@ var EVA = EVA || {};
 
 EVA.Chart = function (get_data_url, placeholder1, placeholder2) {
     // Consts
-    var hourPoints = 60 * 60;
+    var hourPoints = 60;
     var dayPoints = 24 * hourPoints;
+    var hourTickSize = [1, "minute"];
+    var dayTickSize = [30, "minute"];
     var updateInterval = 30 * 1000;
     var options = {
         grid: {
@@ -17,7 +19,7 @@ EVA.Chart = function (get_data_url, placeholder1, placeholder2) {
         xaxis: {
             mode: "time",
             timezone: "browser",
-            minTickSize: [30, "minute"]
+            minTickSize: dayTickSize
         }
     };
 
@@ -35,7 +37,7 @@ EVA.Chart = function (get_data_url, placeholder1, placeholder2) {
         var tz = date.getTimezoneOffset();
         var h = pad(Math.abs(parseInt(tz / 60)), 2);
         var m = pad(Math.abs(tz % 60), 2);
-        var sign = tz < 0 ? "-" : "+";
+        var sign = tz > 0 ? "-" : "+";
         var result = date.toISOString();
         result = result.slice(0, result.length - 1);
         result += sign + h + ":" + m;
@@ -77,6 +79,7 @@ EVA.Chart = function (get_data_url, placeholder1, placeholder2) {
         d.setSeconds(d.getSeconds() - totalPoints);
         last_time = toTZ(d);
         data = [];
+        options.xaxis.minTickSize = dayTickSize;
     }
 
     this.perHour = function () {
@@ -85,15 +88,12 @@ EVA.Chart = function (get_data_url, placeholder1, placeholder2) {
         d.setSeconds(d.getSeconds() - totalPoints);
         last_time = toTZ(d);
         data = [];
+        options.xaxis.minTickSize = hourTickSize;
     }
 
     this.render = function () {
-        plot1.setData([ ]);
-        plot1.setupGrid();
-        plot1.draw();
-        plot2.setData([ ]);
-        plot2.setupGrid();
-        plot2.draw();
+        plot1 = $.plot(placeholder1, [ ], options);
+        plot2 = $.plot(placeholder2, [ ], options);
         render(totalPoints);
     }
 
@@ -110,7 +110,7 @@ EVA.Chart = function (get_data_url, placeholder1, placeholder2) {
         setTimeout(this.update, updateInterval);
     }
 
-    this.perDay()
+    this.perHour();
 
     return this;
 }
