@@ -123,7 +123,7 @@ EVA.Chart = function (get_data_url, placeholder1, placeholder2) {
         setTimeout(this.update, updateInterval);
     }
 
-    this.perDay();
+    this.perHour();
 
     var plot1 = $.plot(placeholder1, [ ], options);
     var plot2 = $.plot(placeholder2, [ ], options);

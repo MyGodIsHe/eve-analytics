@@ -33,9 +33,10 @@
                     this.U = 0;
                 if (this.U > 1)
                     this.U = 1;
-                    count *= 1 - this.U;
-                this.queue += count;
-                this.eatSize = Math.random() * 100 + 200;
+                for (var i = 0; i < count; i++)
+                    if ((1 - this.U) > Math.random())
+                        this.queue += 1;
+                this.eatSize = 100;
                 this.queue -= this.eatSize;
                 if (this.queue < 0)
                     this.queue = 0;

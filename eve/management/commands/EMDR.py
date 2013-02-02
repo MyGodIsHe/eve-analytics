@@ -31,20 +31,30 @@ class PID(object):
     K = 0.0001
     Ti = 0.01
     Td = 1
+    TD_ACCESS = timedelta(minutes=1)
 
     def __init__(self, limit):
         self.prevErr = 0
         self.prevU = 0
         self.Int = 0
         self.limit = limit
+        self.last_take = datetime.now()
+
+    def can_take(self):
+        return datetime.now() - self.last_take > self.TD_ACCESS
 
     def take_percent(self, queue_count):
+        now = datetime.now()
+        if now - self.last_take <= self.TD_ACCESS:
+            return 1 - self.prevU
+
+        self.last_take = now
         Err = queue_count - self.limit
         dErr = Err - self.prevErr
         self.Int += Err
         U = (self.prevU + self.K * ( Err + self.Ti * self.Int + self.Td * dErr )) / 2
         self.prevErr = Err
-        self.prevU = U;
+        self.prevU = U
 
         if U < 0:
             U = 0
@@ -88,6 +98,8 @@ class DataStore(object):
 
         now = tz_now()
 
+        take_percent = self.pid.take_percent(len(self.news))
+
         for rowset in market_data['rowsets']:
             data_key = (region_id, rowset['typeID'])
             rowset['columns'] = market_data['columns']
@@ -102,10 +114,13 @@ class DataStore(object):
 
             self.__rowsets[data_key] = [now, rowset]
 
-            if self.need_take():
+            self.state_packages += 1
+            if take_percent > random.random():
                 self.lock.acquire()
                 self.news.appendleft(data_key)
                 self.lock.release()
+            else:
+                self.state_skip_packages += 1
 
         self.update_stats()
 
@@ -129,13 +144,6 @@ class DataStore(object):
     def close(self):
         self.process.terminate()
         self.connection.close()
-
-    def need_take(self):
-        self.state_packages += 1
-        take_percent = self.pid.take_percent(len(self.news))
-        if take_percent > random.random():
-            return True
-        self.state_skip_packages += 1
 
     def news_connector(self):
         while True:
