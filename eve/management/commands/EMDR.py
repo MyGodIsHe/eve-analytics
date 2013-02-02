@@ -86,8 +86,6 @@ class DataStore(object):
 
         now = tz_now()
 
-        need_take = self.need_take()
-
         for rowset in market_data['rowsets']:
             data_key = (region_id, rowset['typeID'])
             rowset['columns'] = market_data['columns']
@@ -102,7 +100,7 @@ class DataStore(object):
 
             self.__rowsets[data_key] = [now, rowset]
 
-            if need_take:
+            if self.need_take():
                 self.lock.acquire()
                 self.news.appendleft(data_key)
                 self.lock.release()
