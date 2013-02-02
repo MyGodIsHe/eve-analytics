@@ -24,8 +24,6 @@ EVA.Chart = function (get_data_url, placeholder1, placeholder2) {
     };
 
     var data, totalPoints, last_time;
-    var plot1 = $.plot(placeholder1, [ ], options);
-    var plot2 = $.plot(placeholder2, [ ], options);
 
     function pad(num, size) {
         var s = num+"";
@@ -125,7 +123,10 @@ EVA.Chart = function (get_data_url, placeholder1, placeholder2) {
         setTimeout(this.update, updateInterval);
     }
 
-    this.perHour();
+    this.perDay();
+
+    var plot1 = $.plot(placeholder1, [ ], options);
+    var plot2 = $.plot(placeholder2, [ ], options);
 
     return this;
 }
