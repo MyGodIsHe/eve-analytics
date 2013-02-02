@@ -8,15 +8,16 @@
     <script language="javascript" type="text/javascript" src="{% static 'lib/jquery.flot.time.js' %}"></script>
     <script>
         var PID = function () {
-            var K = 0.01, Ti = 0.01, Td = 1;
+            var K = 0.0001, Ti = 0.01, Td = 1;
 
             var prevErr = 0;
             var Int = 0;
+            var prevU = 0;
 
-            var LIMIT = 100;
+            var LIMIT = 1000;
             this.queue = 0;
             this.U = 1;
-            var eat_speed = 10;
+            this.eatSize = 0;
 
             this.eat = function (count) {
                 var Err, dErr;
@@ -24,8 +25,9 @@
                 Err = this.queue - LIMIT;
                 dErr = Err - prevErr;
                 Int += Err;
-                this.U = K * ( Err + Ti*Int + Td*dErr );
+                this.U = (prevU + K * (Err + Ti*Int + Td*dErr)) / 2;
                 prevErr = Err;
+                prevU = this.U;
 
                 if (this.U < 0)
                     this.U = 0;
@@ -33,28 +35,29 @@
                     this.U = 1;
                     count *= 1 - this.U;
                 this.queue += count;
-                this.queue -= eat_speed;
+                this.eatSize = Math.random() * 100 + 200;
+                this.queue -= this.eatSize;
                 if (this.queue < 0)
                     this.queue = 0;
             }
         }
 
         function initChart() {
-            var c1 = [], c2 = [], c3 = [];
+            var c1 = [], c2 = [], c3 = [], c4 = [];
             var pid = new PID();
             var total = 1000;
             var upLimit = 15;
             for (var i = 1; i <= total; i++) {
-                var x = i - total / 2;
-                var y = -x * x * upLimit * 0.000004 + Math.sin(i * 0.05) * 5 * Math.random() + upLimit;
+                var y = Math.random() * 250 + 500;
                 y = parseInt(y);
                 c1.push([i, y]);
                 pid.eat(y);
                 c2.push([i, pid.queue]);
                 c3.push([i, pid.U]);
+                c4.push([i, pid.eatSize]);
             }
 
-            $.plot($('#c1'), [ c1 ], {
+            $.plot($('#c1'), [ { data: c1, label: "Packages per min" }, { data: c4, label: "Processing per min" } ], {
                 yaxis: { min: 0 }
             });
 
@@ -75,9 +78,10 @@
 
 {% block container %}
     <div class="page-header">
-        <h1>Skip Chart</h1>
         <div id="c1" style="height:300px;"></div>
+        <h1>Queue per min</h1>
         <div id="c2" style="height:300px;"></div>
+        <h1>Take percent per min</h1>
         <div id="c3" style="height:300px;"></div>
     </div>
 {% endblock %}

@@ -28,12 +28,13 @@ tz_now = lambda: datetime.now().replace(tzinfo=get_current_timezone())
 
 
 class PID(object):
-    K = 0.01
+    K = 0.0001
     Ti = 0.01
     Td = 1
 
     def __init__(self, limit):
         self.prevErr = 0
+        self.prevU = 0
         self.Int = 0
         self.limit = limit
 
@@ -41,8 +42,9 @@ class PID(object):
         Err = queue_count - self.limit
         dErr = Err - self.prevErr
         self.Int += Err
-        U = self.K * ( Err + self.Ti * self.Int + self.Td * dErr )
+        U = (self.prevU + self.K * ( Err + self.Ti * self.Int + self.Td * dErr )) / 2
         self.prevErr = Err
+        self.prevU = U;
 
         if U < 0:
             U = 0
