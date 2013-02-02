@@ -27,12 +27,38 @@ from eve.models import Order, OrderChange, ItemType, Region, Station, SolarSyste
 tz_now = lambda: datetime.now().replace(tzinfo=get_current_timezone())
 
 
+class PID(object):
+    K = 0.01
+    Ti = 0.01
+    Td = 1
+
+    def __init__(self, limit):
+        self.prevErr = 0
+        self.Int = 0
+        self.limit = limit
+
+    def take_percent(self, queue_count):
+        Err = queue_count - self.limit
+        dErr = Err - self.prevErr
+        self.Int += Err
+        U = self.K * ( Err + self.Ti * self.Int + self.Td * dErr )
+        self.prevErr = Err
+
+        if U < 0:
+            U = 0
+        if U > 1:
+            U = 1
+        return 1 - U
+
+
 class DataStore(object):
     QUEUE_SIZE_LIMIT = getattr(settings, 'QUEUE_SIZE_LIMIT', 1000)
     TD_UPDATE_STATE = getattr(settings, 'TD_UPDATE_STATE', timedelta(minutes=1))
     TD_SKIP_BY_KEY = getattr(settings, 'TD_SKIP_BY_KEY', timedelta(minutes=10))
 
     def __init__(self):
+        self.pid = PID(self.QUEUE_SIZE_LIMIT)
+
         self.__rowsets = {}
         self.news = deque()
 
@@ -60,6 +86,8 @@ class DataStore(object):
 
         now = tz_now()
 
+        need_take = self.need_take()
+
         for rowset in market_data['rowsets']:
             data_key = (region_id, rowset['typeID'])
             rowset['columns'] = market_data['columns']
@@ -74,7 +102,7 @@ class DataStore(object):
 
             self.__rowsets[data_key] = [now, rowset]
 
-            if not self.need_skip():
+            if need_take:
                 self.lock.acquire()
                 self.news.appendleft(data_key)
                 self.lock.release()
@@ -97,16 +125,12 @@ class DataStore(object):
         self.process.terminate()
         self.connection.close()
 
-    def need_skip(self):
+    def need_take(self):
         self.state_packages += 1
-        ln = len(self.news)
-        if ln <= DataStore.QUEUE_SIZE_LIMIT:
-            return False
-        k = (ln / DataStore.QUEUE_SIZE_LIMIT) - 1
-        if random.random() * (1 + k * k) > 1:
-            self.state_skip_packages += 1
+        take_percent = self.pid.take_percent(len(self.news))
+        if take_percent > random.random():
             return True
-        return False
+        self.state_skip_packages += 1
 
     def news_connector(self):
         while True:

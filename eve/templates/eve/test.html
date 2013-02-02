@@ -1,0 +1,83 @@
+{% extends 'base.html' %}
+{% load staticfiles i18n tz %}
+
+{% block title %}{% trans 'Home' %}{% endblock %}
+
+{% block foot %}
+    <script language="javascript" type="text/javascript" src="{% static 'lib/jquery.flot.js' %}"></script>
+    <script language="javascript" type="text/javascript" src="{% static 'lib/jquery.flot.time.js' %}"></script>
+    <script>
+        var PID = function () {
+            var K = 0.01, Ti = 0.01, Td = 1;
+
+            var prevErr = 0;
+            var Int = 0;
+
+            var LIMIT = 100;
+            this.queue = 0;
+            this.U = 1;
+            var eat_speed = 10;
+
+            this.eat = function (count) {
+                var Err, dErr;
+
+                Err = this.queue - LIMIT;
+                dErr = Err - prevErr;
+                Int += Err;
+                this.U = K * ( Err + Ti*Int + Td*dErr );
+                prevErr = Err;
+
+                if (this.U < 0)
+                    this.U = 0;
+                if (this.U > 1)
+                    this.U = 1;
+                    count *= 1 - this.U;
+                this.queue += count;
+                this.queue -= eat_speed;
+                if (this.queue < 0)
+                    this.queue = 0;
+            }
+        }
+
+        function initChart() {
+            var c1 = [], c2 = [], c3 = [];
+            var pid = new PID();
+            var total = 1000;
+            var upLimit = 15;
+            for (var i = 1; i <= total; i++) {
+                var x = i - total / 2;
+                var y = -x * x * upLimit * 0.000004 + Math.sin(i * 0.05) * 5 * Math.random() + upLimit;
+                y = parseInt(y);
+                c1.push([i, y]);
+                pid.eat(y);
+                c2.push([i, pid.queue]);
+                c3.push([i, pid.U]);
+            }
+
+            $.plot($('#c1'), [ c1 ], {
+                yaxis: { min: 0 }
+            });
+
+            $.plot($('#c2'), [ c2 ], {
+                //yaxis: { max: 50, min: 0 }
+            });
+
+            $.plot($('#c3'), [ c3 ], {
+                yaxis: { max: 1, min: 0 }
+            }   );
+        }
+
+        $(function () {
+            initChart();
+        });
+    </script>
+{% endblock %}
+
+{% block container %}
+    <div class="page-header">
+        <h1>Skip Chart</h1>
+        <div id="c1" style="height:300px;"></div>
+        <div id="c2" style="height:300px;"></div>
+        <div id="c3" style="height:300px;"></div>
+    </div>
+{% endblock %}

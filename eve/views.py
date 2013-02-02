@@ -98,3 +98,7 @@ def get_skip_data(request):
     data = [(str(i[0]), i[1:]) for i in data]
     data.reverse()
     return HttpResponse(simplejson.dumps(data), mimetype="application/json")
+
+
+def test(request):
+    return render(request, 'eve/test.html')
