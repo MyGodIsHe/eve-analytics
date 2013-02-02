@@ -20,10 +20,11 @@ EVA.Chart = function (get_data_url, placeholder1, placeholder2) {
             mode: "time",
             timezone: "browser",
             minTickSize: dayTickSize
-        }
+        },
+        legend: { position: "sw" }
     };
 
-    var data, totalPoints, last_time;
+    var data, totalPoints, last_time, plot1, plot2;
 
     function pad(num, size) {
         var s = num+"";
@@ -75,11 +76,15 @@ EVA.Chart = function (get_data_url, placeholder1, placeholder2) {
                     graph4.push([date, data[i][1][3]]);
                 }
 
-                plot1.setData([ graph1, graph2 ]);
+                plot1.setData([
+                    { data: graph1, color: 1, label: "Skip percent" },
+                    { data: graph2, color: 2, label: "Duplicate percent by 10 min" } ]);
                 plot1.setupGrid();
                 plot1.draw();
 
-                plot2.setData([ graph3, graph4 ]);
+                plot2.setData([
+                    { data: graph3, color: 3, label: "Queue size" },
+                    { data: graph4, color: 4, label: "Valid stream size" } ]);
                 plot2.setupGrid();
                 plot2.draw();
             }
@@ -125,8 +130,8 @@ EVA.Chart = function (get_data_url, placeholder1, placeholder2) {
 
     this.perHour();
 
-    var plot1 = $.plot(placeholder1, [ ], options);
-    var plot2 = $.plot(placeholder2, [ ], options);
+    plot1 = $.plot(placeholder1, [ ], options);
+    plot2 = $.plot(placeholder2, [ ], options);
 
     return this;
 }
