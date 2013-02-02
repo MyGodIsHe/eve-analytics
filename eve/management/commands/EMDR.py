@@ -114,12 +114,17 @@ class DataStore(object):
         if current_time - self.last_time_null > DataStore.TD_UPDATE_STATE:
             self.last_time_null = current_time
             package_percent = 100.0 * self.state_skip_packages / self.state_packages
+            row_percent = 100.0 * self.state_skip_rows / self.state_rows
+            SkipChart.objects.create(
+                package_percent=package_percent,
+                row_percent=row_percent,
+                queue_size=len(self.news),
+                packages=self.state_packages,
+            )
             self.state_packages = 0
             self.state_skip_packages = 0
-            row_percent = 100.0 * self.state_skip_rows / self.state_rows
             self.state_rows = 0
             self.state_skip_rows = 0
-            SkipChart.objects.create(package_percent=package_percent, row_percent=row_percent, queue_size=len(self.news))
 
     def close(self):
         self.process.terminate()
