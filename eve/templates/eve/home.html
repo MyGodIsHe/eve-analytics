@@ -13,14 +13,23 @@
     <script language="javascript" type="text/javascript" src="{% static 'js/chart.js' %}"></script>
     <script>
         $(function () {
-            initChart('{% url get_skip_data %}', $("#skip_chart_percent"), $("#skip_chart_size"));
+            var chart = EVA.Chart('{% url get_skip_data %}', $("#skip_chart_percent"), $("#skip_chart_size"));
+            chart.update();
+            $('#btn_day').click(function () {
+                chart.perDay();
+                chart.render();
+            });
+            $('#btn_hour').click(function () {
+                chart.perHour();
+                chart.render();
+            });
         });
     </script>
 {% endblock %}
 
 {% block container %}
     <div class="page-header">
-        <h1>Skip Chart</h1>
+        <h1>Skip Chart <a class="btn" id="btn_day">Day</a> <a class="btn" id="btn_hour">Hour</a></h1>
         <div id="skip_chart_percent" style="height:300px;"></div>
         <div id="skip_chart_size" style="height:300px;"></div>
     </div>

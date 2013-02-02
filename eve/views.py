@@ -85,14 +85,10 @@ def get_skip_data(request):
     if max_count < 0:
         return HttpResponseBadRequest()
 
-    if last_time:
-        print last_time
-        create_at = parse_datetime(last_time)
-        if not create_at:
-            return HttpResponseBadRequest()
-        query = SkipChart.objects.filter(create_at__gt=create_at)
-    else:
-        query = SkipChart.objects
+    create_at = parse_datetime(last_time)
+    if not create_at:
+        return HttpResponseBadRequest()
+    query = SkipChart.objects.filter(create_at__gt=create_at)
     query = query.order_by('-id')[:max_count]
     data = query.values_list('create_at', 'package_percent', 'row_percent', 'queue_size')
     data = [(str(i[0]), i[1:]) for i in data]
