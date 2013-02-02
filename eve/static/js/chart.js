@@ -49,24 +49,39 @@ EVA.Chart = function (get_data_url, placeholder1, placeholder2) {
         $.get(url, function (response_data) {
             if (response_data && response_data.length != 0) {
                 data.push.apply(data, response_data);
-                data = data.slice(data.length - totalPoints);
+
+                if (data.length > totalPoints)
+                    data = data.slice(data.length - totalPoints);
+                else {
+                    var ln = totalPoints - data.length,
+                        empty = [],
+                        first_time = data[0][0];
+                    for (var i = ln; i > 0; i--) {
+                        var dt = new Date(first_time);
+                        dt.setMinutes(dt.getMinutes() - i);
+                        empty.push([dt, [null,null,null,null]])
+                    }
+                    empty.push.apply(empty, data);
+                    data = empty;
+                }
 
                 last_time = data[data.length - 1][0];
 
                 // zip the generated y values with the x values
-                var graph1 = [], graph2 = [], graph3 = [];
+                var graph1 = [], graph2 = [], graph3 = [], graph4 = [];
                 for (var i = 0; i < data.length; ++i) {
                     var date = new Date(data[i][0]);
                     graph1.push([date, data[i][1][0]]);
                     graph2.push([date, data[i][1][1]]);
                     graph3.push([date, data[i][1][2]]);
+                    graph4.push([date, data[i][1][3]]);
                 }
 
                 plot1.setData([ graph1, graph2 ]);
                 plot1.setupGrid();
                 plot1.draw();
 
-                plot2.setData([ graph3 ]);
+                plot2.setData([ graph3, graph4 ]);
                 plot2.setupGrid();
                 plot2.draw();
             }
@@ -76,7 +91,7 @@ EVA.Chart = function (get_data_url, placeholder1, placeholder2) {
     this.perDay = function () {
         totalPoints = dayPoints;
         var d = new Date();
-        d.setSeconds(d.getSeconds() - totalPoints);
+        d.setMinutes(d.getMinutes() - totalPoints);
         last_time = toTZ(d);
         data = [];
         options.xaxis.minTickSize = dayTickSize;
@@ -85,7 +100,7 @@ EVA.Chart = function (get_data_url, placeholder1, placeholder2) {
     this.perHour = function () {
         totalPoints = hourPoints;
         var d = new Date();
-        d.setSeconds(d.getSeconds() - totalPoints);
+        d.setMinutes(d.getMinutes() - totalPoints);
         last_time = toTZ(d);
         data = [];
         options.xaxis.minTickSize = hourTickSize;

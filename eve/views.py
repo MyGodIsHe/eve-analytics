@@ -90,7 +90,8 @@ def get_skip_data(request):
         return HttpResponseBadRequest()
     query = SkipChart.objects.filter(create_at__gt=create_at)
     query = query.order_by('-id')[:max_count]
-    data = query.values_list('create_at', 'package_percent', 'row_percent', 'queue_size')
+    data = query.values_list(
+        'create_at', 'package_percent', 'row_percent', 'queue_size', 'packages')
     data = [(str(i[0]), i[1:]) for i in data]
     data.reverse()
     return HttpResponse(simplejson.dumps(data), mimetype="application/json")
