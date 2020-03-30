@@ -1,4 +1,4 @@
-Django==1.4.3
+Django==1.11.28 # it's security update, tested on 1.4.3
 flup
 south
 eveapi==1.2.6
